@@ -1,0 +1,287 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta
+      name="description"
+      content="Upload, search, and download university past examination papers."
+    />
+    <!--
+      Leave this empty for automatic configuration:
+      - FastAPI-hosted frontend: same-origin /api
+      - Local static server on port 5500/3000: http://localhost:8000/api
+      For a separately hosted frontend, set content to the deployed API URL.
+    -->
+    <meta name="api-base-url" content="" />
+    <title>PaperVault · University Past Papers</title>
+
+    <!-- Tailwind Play CDN is intentionally used because it is part of the lab brief. -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+      tailwind.config = {
+        theme: {
+          extend: {
+            colors: {
+              ink: "#17231f",
+              forest: "#23483c",
+              mint: "#dcecdf",
+              paper: "#f6f4ed",
+              ember: "#ec6d3b",
+            },
+            fontFamily: {
+              sans: ["Inter", "ui-sans-serif", "system-ui", "sans-serif"],
+              display: ["Manrope", "Inter", "ui-sans-serif", "sans-serif"],
+            },
+            boxShadow: {
+              card: "0 18px 50px rgba(23, 35, 31, 0.09)",
+            },
+          },
+        },
+      };
+    </script>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Manrope:wght@600;700;800&display=swap"
+      rel="stylesheet"
+    />
+    <style>
+      /* A few details that are clearer in plain CSS than long utility lists. */
+      body {
+        background:
+          radial-gradient(circle at 8% 5%, rgba(220, 236, 223, 0.9), transparent 28rem),
+          #f6f4ed;
+      }
+
+      .soft-grid {
+        background-image:
+          linear-gradient(rgba(255, 255, 255, 0.035) 1px, transparent 1px),
+          linear-gradient(90deg, rgba(255, 255, 255, 0.035) 1px, transparent 1px);
+        background-size: 28px 28px;
+      }
+
+      .field:focus {
+        outline: none;
+        border-color: #23483c;
+        box-shadow: 0 0 0 3px rgba(35, 72, 60, 0.12);
+      }
+
+      .paper-card {
+        animation: rise 320ms ease both;
+      }
+
+      @keyframes rise {
+        from { opacity: 0; transform: translateY(8px); }
+        to { opacity: 1; transform: translateY(0); }
+      }
+
+      @media (prefers-reduced-motion: reduce) {
+        *, *::before, *::after { scroll-behavior: auto !important; animation: none !important; }
+      }
+    </style>
+    <script src="app.js" defer></script>
+  </head>
+
+  <body class="min-h-screen font-sans text-ink antialiased">
+    <!-- Top navigation and API status -->
+    <header class="border-b border-ink/10 bg-paper/80 backdrop-blur-xl">
+      <div class="mx-auto flex max-w-7xl items-center justify-between px-5 py-4 lg:px-8">
+        <a href="#" class="group flex items-center gap-3" aria-label="PaperVault home">
+          <span class="grid h-10 w-10 place-items-center rounded-xl bg-forest text-white shadow-lg shadow-forest/20">
+            <svg class="h-5 w-5" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+              <path d="M6.5 3.5h8l3 3v14h-11v-17Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/>
+              <path d="M14.5 3.5v3h3M9.5 11h5M9.5 15h5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
+            </svg>
+          </span>
+          <span>
+            <span class="block font-display text-lg font-extrabold leading-none tracking-tight">PaperVault</span>
+            <span class="mt-1 block text-[10px] font-bold uppercase tracking-[0.2em] text-ink/45">Campus archive</span>
+          </span>
+        </a>
+
+        <div class="flex items-center gap-3">
+          <a id="api-docs-link" href="/docs" target="_blank" rel="noopener" class="hidden text-sm font-semibold text-ink/55 transition hover:text-forest sm:block">API docs</a>
+          <div id="api-status" class="flex items-center gap-2 rounded-full border border-ink/10 bg-white/70 px-3 py-1.5 text-xs font-semibold text-ink/55">
+            <span class="h-2 w-2 animate-pulse rounded-full bg-amber-500"></span>
+            Connecting
+          </div>
+        </div>
+      </div>
+    </header>
+
+    <main>
+      <!-- Hero communicates the purpose without consuming the whole viewport. -->
+      <section class="soft-grid relative overflow-hidden bg-ink text-white">
+        <div class="pointer-events-none absolute -right-20 -top-24 h-80 w-80 rounded-full border-[60px] border-ember/10"></div>
+        <div class="relative mx-auto grid max-w-7xl gap-8 px-5 py-12 lg:grid-cols-[1.25fr_0.75fr] lg:items-end lg:px-8 lg:py-16">
+          <div>
+            <div class="mb-5 inline-flex items-center gap-2 rounded-full border border-white/15 bg-white/5 px-3 py-1.5 text-xs font-semibold text-mint">
+              <span class="h-1.5 w-1.5 rounded-full bg-ember"></span>
+              Built by students, for students
+            </div>
+            <h1 class="max-w-3xl font-display text-4xl font-extrabold leading-[1.05] tracking-[-0.04em] sm:text-5xl lg:text-6xl">
+              Find the right paper.<br /><span class="text-mint">Prepare with purpose.</span>
+            </h1>
+            <p class="mt-5 max-w-2xl text-base leading-7 text-white/62 sm:text-lg">
+              One organized home for past university examinations. Search by semester, branch, or course code—and help the archive grow.
+            </p>
+          </div>
+
+          <div class="grid grid-cols-2 gap-3 sm:gap-4">
+            <div class="rounded-2xl border border-white/10 bg-white/[0.06] p-4 backdrop-blur">
+              <p id="paper-count" class="font-display text-3xl font-bold">—</p>
+              <p class="mt-1 text-xs font-medium uppercase tracking-wider text-white/45">Papers shown</p>
+            </div>
+            <div class="rounded-2xl border border-white/10 bg-white/[0.06] p-4 backdrop-blur">
+              <p id="download-count" class="font-display text-3xl font-bold">—</p>
+              <p class="mt-1 text-xs font-medium uppercase tracking-wider text-white/45">Downloads</p>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- Main workspace: upload panel + searchable repository. -->
+      <section class="mx-auto grid max-w-7xl gap-7 px-5 py-10 lg:grid-cols-[360px_minmax(0,1fr)] lg:items-start lg:px-8 lg:py-14">
+        <aside class="rounded-3xl border border-ink/10 bg-white p-6 shadow-card lg:sticky lg:top-6">
+          <div class="mb-6 flex items-start justify-between gap-4">
+            <div>
+              <p class="text-xs font-bold uppercase tracking-[0.18em] text-ember">Contribute</p>
+              <h2 class="mt-2 font-display text-2xl font-extrabold tracking-tight">Upload a paper</h2>
+            </div>
+            <span class="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-mint text-forest">
+              <svg class="h-5 w-5" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                <path d="M12 16V4m0 0L7.5 8.5M12 4l4.5 4.5M5 14v5h14v-5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+              </svg>
+            </span>
+          </div>
+
+          <form id="upload-form" class="space-y-4">
+            <div>
+              <label for="title" class="mb-1.5 block text-xs font-bold text-ink/65">Paper title</label>
+              <input id="title" name="title" type="text" required minlength="2" maxlength="255" placeholder="Data Structures Final 2024" class="field w-full rounded-xl border border-ink/15 bg-paper/60 px-3.5 py-2.5 text-sm transition placeholder:text-ink/30" />
+            </div>
+
+            <div class="grid grid-cols-2 gap-3">
+              <div>
+                <label for="semester" class="mb-1.5 block text-xs font-bold text-ink/65">Semester</label>
+                <select id="semester" name="semester" required class="field w-full rounded-xl border border-ink/15 bg-paper/60 px-3.5 py-2.5 text-sm transition">
+                  <option value="">Select</option>
+                  <option value="1">1</option><option value="2">2</option>
+                  <option value="3">3</option><option value="4">4</option>
+                  <option value="5">5</option><option value="6">6</option>
+                  <option value="7">7</option><option value="8">8</option>
+                  <option value="9">9</option><option value="10">10</option>
+                  <option value="11">11</option><option value="12">12</option>
+                </select>
+              </div>
+              <div>
+                <label for="branch" class="mb-1.5 block text-xs font-bold text-ink/65">Branch</label>
+                <input id="branch" name="branch" list="branch-options" required minlength="2" maxlength="100" placeholder="CSE" class="field w-full rounded-xl border border-ink/15 bg-paper/60 px-3.5 py-2.5 text-sm uppercase transition placeholder:normal-case placeholder:text-ink/30" />
+              </div>
+            </div>
+
+            <datalist id="branch-options">
+              <option value="CSE"></option><option value="ECE"></option>
+              <option value="EEE"></option><option value="MECH"></option>
+              <option value="CIVIL"></option><option value="IT"></option>
+            </datalist>
+
+            <div class="grid grid-cols-2 gap-3">
+              <div>
+                <label for="course_code" class="mb-1.5 block text-xs font-bold text-ink/65">Course code</label>
+                <input id="course_code" name="course_code" type="text" required minlength="2" maxlength="50" placeholder="19CSE201" class="field w-full rounded-xl border border-ink/15 bg-paper/60 px-3.5 py-2.5 text-sm uppercase transition placeholder:text-ink/30" />
+              </div>
+              <div>
+                <label for="exam_type" class="mb-1.5 block text-xs font-bold text-ink/65">Exam type</label>
+                <select id="exam_type" name="exam_type" required class="field w-full rounded-xl border border-ink/15 bg-paper/60 px-3.5 py-2.5 text-sm transition">
+                  <option value="">Select</option>
+                  <option>Midterm</option><option>Final</option>
+                  <option>Supplementary</option><option>Quiz</option>
+                </select>
+              </div>
+            </div>
+
+            <div>
+              <label for="file" id="file-drop-label" class="group block cursor-pointer rounded-2xl border-2 border-dashed border-ink/15 bg-paper/60 px-4 py-5 text-center transition hover:border-forest/40 hover:bg-mint/40">
+                <svg class="mx-auto h-7 w-7 text-forest/60 transition group-hover:-translate-y-0.5" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                  <path d="M12 15V5m0 0L8.5 8.5M12 5l3.5 3.5M6 13.5a4 4 0 0 0 .5 7.5h11a3.5 3.5 0 0 0 .5-6.96A6 6 0 0 0 6.4 12" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/>
+                </svg>
+                <span id="file-label" class="mt-2 block truncate text-sm font-bold text-ink/70">Choose a PDF file</span>
+                <span class="mt-1 block text-[11px] text-ink/40">PDF only · maximum 15 MB</span>
+              </label>
+              <input id="file" name="file" type="file" accept="application/pdf,.pdf" required class="sr-only" />
+            </div>
+
+            <button id="upload-button" type="submit" class="flex w-full items-center justify-center gap-2 rounded-xl bg-ember px-4 py-3 text-sm font-bold text-white shadow-lg shadow-ember/20 transition hover:-translate-y-0.5 hover:bg-[#d95e30] disabled:cursor-not-allowed disabled:opacity-60 disabled:hover:translate-y-0">
+              <span>Publish to repository</span>
+              <svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                <path d="m8 5 7 7-7 7" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+              </svg>
+            </button>
+          </form>
+          <p class="mt-4 text-center text-[11px] leading-5 text-ink/40">A SHA-256 fingerprint prevents the same PDF from being uploaded twice.</p>
+        </aside>
+
+        <div class="min-w-0">
+          <div class="mb-5 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+            <div>
+              <p class="text-xs font-bold uppercase tracking-[0.18em] text-forest/60">The collection</p>
+              <h2 class="mt-2 font-display text-3xl font-extrabold tracking-tight">Browse past papers</h2>
+            </div>
+            <p id="results-summary" class="text-sm font-medium text-ink/45" aria-live="polite">Loading papers…</p>
+          </div>
+
+          <!-- Search submits immediately on select changes and is debounced for typing. -->
+          <form id="search-form" class="mb-6 grid gap-3 rounded-2xl border border-ink/10 bg-white p-3 shadow-sm sm:grid-cols-[1fr_150px_150px_auto]" role="search">
+            <label class="relative block">
+              <span class="sr-only">Search by course code</span>
+              <svg class="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-ink/35" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                <circle cx="10.5" cy="10.5" r="6" stroke="currentColor" stroke-width="1.8"/><path d="m15 15 4 4" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
+              </svg>
+              <input id="search-course-code" name="course_code" type="search" maxlength="50" placeholder="Search course code, e.g. cse201" class="field w-full rounded-xl border border-ink/10 bg-paper/50 py-2.5 pl-10 pr-3 text-sm placeholder:text-ink/30" />
+            </label>
+            <label>
+              <span class="sr-only">Filter by semester</span>
+              <select id="search-semester" name="semester" class="field w-full rounded-xl border border-ink/10 bg-paper/50 px-3 py-2.5 text-sm">
+                <option value="">All semesters</option>
+                <option value="1">Semester 1</option><option value="2">Semester 2</option>
+                <option value="3">Semester 3</option><option value="4">Semester 4</option>
+                <option value="5">Semester 5</option><option value="6">Semester 6</option>
+                <option value="7">Semester 7</option><option value="8">Semester 8</option>
+                <option value="9">Semester 9</option><option value="10">Semester 10</option>
+                <option value="11">Semester 11</option><option value="12">Semester 12</option>
+              </select>
+            </label>
+            <label>
+              <span class="sr-only">Filter by branch</span>
+              <select id="search-branch" name="branch" class="field w-full rounded-xl border border-ink/10 bg-paper/50 px-3 py-2.5 text-sm">
+                <option value="">All branches</option>
+                <option value="CSE">CSE</option><option value="ECE">ECE</option>
+                <option value="EEE">EEE</option><option value="MECH">MECH</option>
+                <option value="CIVIL">CIVIL</option><option value="IT">IT</option>
+              </select>
+            </label>
+            <button type="submit" class="rounded-xl bg-forest px-5 py-2.5 text-sm font-bold text-white transition hover:bg-ink">Search</button>
+          </form>
+
+          <div id="papers-list" class="space-y-3" aria-live="polite" aria-busy="true">
+            <!-- app.js replaces these skeletons with live API results. -->
+            <div class="animate-pulse rounded-2xl border border-ink/5 bg-white p-5"><div class="h-4 w-1/3 rounded bg-ink/10"></div><div class="mt-4 h-3 w-2/3 rounded bg-ink/5"></div></div>
+            <div class="animate-pulse rounded-2xl border border-ink/5 bg-white p-5"><div class="h-4 w-2/5 rounded bg-ink/10"></div><div class="mt-4 h-3 w-1/2 rounded bg-ink/5"></div></div>
+          </div>
+        </div>
+      </section>
+    </main>
+
+    <footer class="border-t border-ink/10 bg-white/40">
+      <div class="mx-auto flex max-w-7xl flex-col gap-2 px-5 py-7 text-xs text-ink/45 sm:flex-row sm:items-center sm:justify-between lg:px-8">
+        <p>PaperVault · University Past Paper Repository</p>
+        <p>FastAPI · PostgreSQL · SQLAlchemy · Vanilla JavaScript</p>
+      </div>
+    </footer>
+
+    <!-- Toast messages are announced to screen readers as they appear. -->
+    <div id="toast" class="pointer-events-none fixed bottom-5 left-1/2 z-50 hidden w-[calc(100%-2rem)] max-w-md -translate-x-1/2 rounded-2xl bg-ink px-4 py-3 text-sm font-semibold text-white shadow-2xl" role="status" aria-live="polite"></div>
+  </body>
+</html>

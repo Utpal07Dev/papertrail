@@ -1,0 +1,19 @@
+# Web API and ASGI production server
+fastapi==0.115.12
+uvicorn[standard]==0.34.2
+
+# PostgreSQL ORM and the modern Psycopg 3 driver
+SQLAlchemy==2.0.40
+psycopg[binary]==3.2.6
+
+# Environment configuration and multipart PDF uploads
+pydantic-settings==2.9.1
+python-multipart==0.0.20
+
+# Supabase storage client
+supabase>=2.3.0
+
+
+# Hybrid AI Scanner dependencies
+PyMuPDF==1.23.26
+google-genai>=0.1.0

@@ -1,0 +1,302 @@
+/*
+ * PaperVault browser application
+ * --------------------------------
+ * This file uses only standard browser APIs. Every backend call goes through
+ * fetch(), and uploads use FormData so the PDF is sent as multipart/form-data.
+ */
+
+// When FastAPI serves this folder, API routes are on the same origin. When a
+// beginner runs the frontend with VS Code Live Server (usually port 5500), we
+// automatically call the separately running FastAPI server on port 8000.
+const configuredApiUrl = document
+  .querySelector('meta[name="api-base-url"]')
+  ?.getAttribute("content")
+  ?.trim();
+const standaloneLocalPorts = new Set(["3000", "5500", "5501"]);
+const selectedApiUrl =
+  configuredApiUrl ||
+  (standaloneLocalPorts.has(window.location.port)
+    ? "http://localhost:8000/api"
+    : `${window.location.origin}/api`);
+const API_BASE_URL = (
+  selectedApiUrl.startsWith("/")
+    ? `${window.location.origin}${selectedApiUrl}`
+    : selectedApiUrl
+).replace(/\/$/, "");
+const API_ORIGIN = API_BASE_URL.replace(/\/api$/, "");
+
+// Point API documentation to the backend when frontend and API use different origins.
+document.querySelector("#api-docs-link").href = `${API_ORIGIN}/docs`;
+
+// Cache DOM elements once instead of repeatedly searching the document.
+const uploadForm = document.querySelector("#upload-form");
+const uploadButton = document.querySelector("#upload-button");
+const fileInput = document.querySelector("#file");
+const fileLabel = document.querySelector("#file-label");
+const searchForm = document.querySelector("#search-form");
+const semesterFilter = document.querySelector("#search-semester");
+const branchFilter = document.querySelector("#search-branch");
+const courseCodeFilter = document.querySelector("#search-course-code");
+const papersList = document.querySelector("#papers-list");
+const resultsSummary = document.querySelector("#results-summary");
+const paperCount = document.querySelector("#paper-count");
+const downloadCount = document.querySelector("#download-count");
+const apiStatus = document.querySelector("#api-status");
+const toast = document.querySelector("#toast");
+
+let toastTimer;
+let searchTimer;
+
+/** Convert FastAPI error bodies into one friendly message. */
+function getErrorMessage(payload, fallback = "Something went wrong. Please try again.") {
+  if (!payload) return fallback;
+  if (typeof payload.detail === "string") return payload.detail;
+  if (Array.isArray(payload.detail)) {
+    return payload.detail.map((error) => error.msg).join(" ");
+  }
+  return fallback;
+}
+
+/** Fetch JSON and throw an Error for every non-2xx HTTP response. */
+async function requestJson(url, options = {}) {
+  const response = await fetch(url, options);
+  let payload = null;
+
+  try {
+    payload = await response.json();
+  } catch {
+    // A proxy or server can occasionally return a non-JSON error page.
+  }
+
+  if (!response.ok) {
+    throw new Error(getErrorMessage(payload, `Request failed (${response.status}).`));
+  }
+  return payload;
+}
+
+/** Display a short success/error notification without blocking the page. */
+function showToast(message, type = "success") {
+  window.clearTimeout(toastTimer);
+  toast.textContent = message;
+  toast.className = [
+    "pointer-events-none fixed bottom-5 left-1/2 z-50 w-[calc(100%-2rem)] max-w-md -translate-x-1/2 rounded-2xl px-4 py-3 text-sm font-semibold text-white shadow-2xl",
+    type === "error" ? "bg-red-700" : "bg-ink",
+  ].join(" ");
+
+  toastTimer = window.setTimeout(() => toast.classList.add("hidden"), 4500);
+}
+
+/** Create a DOM element with classes and text (textContent prevents XSS). */
+function element(tag, className, text) {
+  const node = document.createElement(tag);
+  if (className) node.className = className;
+  if (text !== undefined) node.textContent = text;
+  return node;
+}
+
+/** Make relative /uploads URLs work with both local and remote backends. */
+function absoluteFileUrl(fileUrl) {
+  if (/^https?:\/\//i.test(fileUrl)) return fileUrl;
+  return new URL(fileUrl, `${API_ORIGIN}/`).href;
+}
+
+/** Build one safe paper card using DOM methods rather than innerHTML. */
+function createPaperCard(paper, index) {
+  const article = element(
+    "article",
+    "paper-card group rounded-2xl border border-ink/10 bg-white p-5 shadow-sm transition hover:-translate-y-0.5 hover:border-forest/25 hover:shadow-card sm:p-6"
+  );
+  article.style.animationDelay = `${Math.min(index * 45, 300)}ms`;
+
+  const layout = element("div", "flex items-start gap-4");
+  const icon = element(
+    "div",
+    "grid h-12 w-12 shrink-0 place-items-center rounded-2xl bg-mint text-forest"
+  );
+  icon.setAttribute("aria-hidden", "true");
+  icon.textContent = "PDF";
+  icon.classList.add("text-[10px]", "font-extrabold", "tracking-wider");
+
+  const content = element("div", "min-w-0 flex-1");
+  const topRow = element("div", "flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between");
+  const headingGroup = element("div", "min-w-0");
+  const badges = element("div", "mb-2 flex flex-wrap items-center gap-2");
+  badges.append(
+    element("span", "rounded-md bg-forest px-2 py-1 text-[10px] font-extrabold uppercase tracking-wider text-white", paper.course_code),
+    element("span", "rounded-md bg-paper px-2 py-1 text-[10px] font-bold uppercase tracking-wider text-ink/50", paper.exam_type)
+  );
+
+  const title = element(
+    "h3",
+    "truncate font-display text-lg font-extrabold tracking-tight text-ink",
+    paper.title
+  );
+  title.title = paper.title;
+  headingGroup.append(badges, title);
+
+  const downloadButton = element(
+    "button",
+    "download-button inline-flex shrink-0 items-center justify-center gap-2 rounded-xl border border-forest/20 bg-mint/60 px-4 py-2.5 text-xs font-extrabold text-forest transition hover:border-forest hover:bg-forest hover:text-white disabled:cursor-wait disabled:opacity-60",
+    "Download PDF"
+  );
+  downloadButton.type = "button";
+  downloadButton.dataset.downloadId = String(paper.id);
+  downloadButton.setAttribute("aria-label", `Download ${paper.title}`);
+  topRow.append(headingGroup, downloadButton);
+
+  const details = element("div", "mt-4 flex flex-wrap items-center gap-x-5 gap-y-2 border-t border-ink/5 pt-4 text-xs font-medium text-ink/45");
+  details.append(
+    element("span", "", `Semester ${paper.semester}`),
+    element("span", "", paper.branch),
+    element("span", "", `${paper.download_count.toLocaleString()} download${paper.download_count === 1 ? "" : "s"}`)
+  );
+
+  content.append(topRow, details);
+  layout.append(icon, content);
+  article.append(layout);
+  return article;
+}
+
+/** Render search results plus the summary statistics in the hero. */
+function renderPapers(papers) {
+  papersList.replaceChildren();
+  papersList.setAttribute("aria-busy", "false");
+
+  paperCount.textContent = papers.length.toLocaleString();
+  const visibleDownloads = papers.reduce((sum, paper) => sum + paper.download_count, 0);
+  downloadCount.textContent = visibleDownloads.toLocaleString();
+  resultsSummary.textContent = `${papers.length} paper${papers.length === 1 ? "" : "s"} found`;
+
+  if (papers.length === 0) {
+    const empty = element("div", "rounded-3xl border border-dashed border-ink/15 bg-white/60 px-6 py-16 text-center");
+    empty.append(
+      element("p", "font-display text-xl font-extrabold", "No papers found"),
+      element("p", "mx-auto mt-2 max-w-sm text-sm leading-6 text-ink/45", "Try fewer filters, search part of a course code, or upload the first matching paper.")
+    );
+    papersList.append(empty);
+    return;
+  }
+
+  const fragment = document.createDocumentFragment();
+  papers.forEach((paper, index) => fragment.append(createPaperCard(paper, index)));
+  papersList.append(fragment);
+}
+
+/** Read filters, produce a query string, and refresh the results list. */
+async function loadPapers() {
+  papersList.setAttribute("aria-busy", "true");
+  resultsSummary.textContent = "Searching…";
+
+  const params = new URLSearchParams();
+  if (semesterFilter.value) params.set("semester", semesterFilter.value);
+  if (branchFilter.value) params.set("branch", branchFilter.value);
+  if (courseCodeFilter.value.trim()) params.set("course_code", courseCodeFilter.value.trim());
+
+  try {
+    const papers = await requestJson(`${API_BASE_URL}/papers?${params.toString()}`);
+    renderPapers(papers);
+    setApiStatus(true);
+  } catch (error) {
+    setApiStatus(false);
+    papersList.setAttribute("aria-busy", "false");
+    papersList.replaceChildren();
+    const errorPanel = element("div", "rounded-2xl border border-red-200 bg-red-50 p-6 text-center text-sm text-red-700", error.message);
+    papersList.append(errorPanel);
+    resultsSummary.textContent = "Could not load papers";
+    paperCount.textContent = "—";
+    downloadCount.textContent = "—";
+  }
+}
+
+function setApiStatus(isOnline) {
+  apiStatus.replaceChildren();
+  const dot = element("span", `h-2 w-2 rounded-full ${isOnline ? "bg-emerald-500" : "bg-red-500"}`);
+  apiStatus.append(dot, document.createTextNode(isOnline ? "API online" : "API offline"));
+}
+
+// FormData automatically includes every named input, including the binary PDF.
+// Do not manually set Content-Type: the browser adds the required boundary.
+uploadForm.addEventListener("submit", async (event) => {
+  event.preventDefault();
+
+  const selectedFile = fileInput.files[0];
+  if (!selectedFile) {
+    showToast("Please choose a PDF file.", "error");
+    return;
+  }
+  if (selectedFile.size > 15 * 1024 * 1024) {
+    showToast("The PDF must be 15 MB or smaller.", "error");
+    return;
+  }
+
+  uploadButton.disabled = true;
+  const originalText = uploadButton.querySelector("span").textContent;
+  uploadButton.querySelector("span").textContent = "Uploading…";
+
+  try {
+    const createdPaper = await requestJson(`${API_BASE_URL}/papers`, {
+      method: "POST",
+      body: new FormData(uploadForm),
+    });
+    showToast(`“${createdPaper.title}” was added successfully.`);
+    uploadForm.reset();
+    fileLabel.textContent = "Choose a PDF file";
+    await loadPapers();
+  } catch (error) {
+    showToast(error.message, "error");
+  } finally {
+    uploadButton.disabled = false;
+    uploadButton.querySelector("span").textContent = originalText;
+  }
+});
+
+// Show the selected filename immediately so users know their click worked.
+fileInput.addEventListener("change", () => {
+  const file = fileInput.files[0];
+  fileLabel.textContent = file ? file.name : "Choose a PDF file";
+});
+
+searchForm.addEventListener("submit", (event) => {
+  event.preventDefault();
+  loadPapers();
+});
+semesterFilter.addEventListener("change", loadPapers);
+branchFilter.addEventListener("change", loadPapers);
+courseCodeFilter.addEventListener("input", () => {
+  window.clearTimeout(searchTimer);
+  searchTimer = window.setTimeout(loadPapers, 350);
+});
+
+// Event delegation handles every current and future download button with one
+// listener. Tracking completes before the real file URL is opened.
+papersList.addEventListener("click", async (event) => {
+  const button = event.target.closest("[data-download-id]");
+  if (!button) return;
+
+  button.disabled = true;
+  const previousLabel = button.textContent;
+  button.textContent = "Preparing…";
+
+  try {
+    const result = await requestJson(
+      `${API_BASE_URL}/papers/${button.dataset.downloadId}/download`
+    );
+    const link = document.createElement("a");
+    link.href = absoluteFileUrl(result.file_url);
+    link.target = "_blank";
+    link.rel = "noopener";
+    link.download = "";
+    document.body.append(link);
+    link.click();
+    link.remove();
+    await loadPapers();
+  } catch (error) {
+    showToast(error.message, "error");
+  } finally {
+    button.disabled = false;
+    button.textContent = previousLabel;
+  }
+});
+
+// Initial page load: the result request also acts as a useful API health check.
+loadPapers();

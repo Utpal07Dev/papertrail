@@ -1,0 +1,31 @@
+# Render Blueprint: connect this repository in the Render dashboard.
+databases:
+  - name: papervault-postgres
+    databaseName: past_papers
+    user: papervault
+
+services:
+  - type: web
+    name: papervault
+    runtime: docker
+    dockerfilePath: ./Dockerfile
+    healthCheckPath: /api/health
+    envVars:
+      - key: DATABASE_URL
+        fromDatabase:
+          name: papervault-postgres
+          property: connectionString
+      - key: ENVIRONMENT
+        value: production
+      - key: UPLOAD_DIR
+        value: /var/data/uploads
+      - key: MAX_UPLOAD_SIZE_MB
+        value: 15
+      - key: WEB_CONCURRENCY
+        value: 2
+      - key: ALLOWED_ORIGINS
+        value: https://papervault.onrender.com
+    disk:
+      name: paper-uploads
+      mountPath: /var/data
+      sizeGB: 1
