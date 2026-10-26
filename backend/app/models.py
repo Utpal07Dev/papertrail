@@ -1,4 +1,5 @@
-from sqlalchemy import Column, Integer, String
+from sqlalchemy import Column, DateTime, Integer, String
+from sqlalchemy.sql import func
 from app.database import Base
 
 class Paper(Base):
@@ -17,3 +18,15 @@ class Paper(Base):
     # Community Moderation
     upvotes = Column(Integer, default=0)
     downvotes = Column(Integer, default=0)
+
+
+class CourseResource(Base):
+    """A study link (YouTube playlist, textbook URL, etc.) tied to a course_code."""
+
+    __tablename__ = "course_resources"
+
+    id = Column(Integer, primary_key=True, index=True)
+    course_code = Column(String(50), index=True, nullable=False)
+    description = Column(String(500), nullable=False)
+    url = Column(String(1000), nullable=True)
+    created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)

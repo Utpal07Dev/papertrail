@@ -61,6 +61,16 @@ def search_papers(
         query = query.filter(models.Paper.course_code.ilike(f"%{course_code}%"))
     return query.offset(skip).limit(limit).all()
 
+@router.get("/{paper_id}/download")
+def download_paper(paper_id: int, db: Session = Depends(get_db)):
+    paper = db.query(models.Paper).filter(models.Paper.id == paper_id).first()
+    if not paper:
+        raise HTTPException(status_code=404, detail="Paper not found.")
+    paper.download_count += 1
+    db.commit()
+    db.refresh(paper)
+    return {"id": paper.id, "file_url": paper.file_url, "download_count": paper.download_count}
+
 @router.post("/{paper_id}/vote", response_model=schemas.PaperResponse)
 def vote_paper(paper_id: int, vote: schemas.PaperVote, db: Session = Depends(get_db)):
     paper = db.query(models.Paper).filter(models.Paper.id == paper_id).first()

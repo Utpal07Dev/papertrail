@@ -1,3 +1,5 @@
+from datetime import datetime
+
 from pydantic import BaseModel, ConfigDict
 
 class PaperCreate(BaseModel):
@@ -23,3 +25,24 @@ class PaperResponse(BaseModel):
 
 class PaperVote(BaseModel):
     vote_type: str  # "up" or "down"
+
+
+# ── Course Resources ────────────────────────────────────────────────────────
+
+class ResourceCreate(BaseModel):
+    """Fields accepted when adding a new study resource."""
+
+    description: str
+    url: str | None = None
+
+
+class ResourceResponse(BaseModel):
+    """Fields returned for a study resource (ORM-friendly)."""
+
+    id: int
+    course_code: str
+    description: str
+    url: str | None
+    created_at: datetime
+
+    model_config = ConfigDict(from_attributes=True)

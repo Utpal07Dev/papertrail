@@ -44,6 +44,15 @@ const downloadCount = document.querySelector("#download-count");
 const apiStatus = document.querySelector("#api-status");
 const toast = document.querySelector("#toast");
 
+// Course Hub elements
+const courseHub = document.querySelector("#course-hub");
+const courseHubTitle = document.querySelector("#course-hub-title");
+const resourcesList = document.querySelector("#resources-list");
+const resourceForm = document.querySelector("#resource-form");
+const resourceSubmit = document.querySelector("#resource-submit");
+const resourceDescription = document.querySelector("#resource-description");
+const resourceUrl = document.querySelector("#resource-url");
+
 let toastTimer;
 let searchTimer;
 
@@ -157,6 +166,85 @@ function createPaperCard(paper, index) {
   return article;
 }
 
+// ── Course Hub helpers ────────────────────────────────────────────────────────────
+
+/** Build a single safe resource card using DOM methods (no innerHTML). */
+function createResourceCard(resource) {
+  const card = element(
+    "div",
+    "paper-card rounded-2xl border border-ink/10 bg-paper/70 p-4 flex items-start gap-4"
+  );
+
+  // Icon
+  const iconWrap = element(
+    "div",
+    "grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-mint text-forest"
+  );
+  iconWrap.setAttribute("aria-hidden", "true");
+  iconWrap.innerHTML = resource.url
+    ? `<svg class="h-5 w-5" viewBox="0 0 24 24" fill="none"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>`
+    : `<svg class="h-5 w-5" viewBox="0 0 24 24" fill="none"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8l-6-6Z" stroke="currentColor" stroke-width="1.8"/><path d="M14 2v6h6" stroke="currentColor" stroke-width="1.8"/></svg>`;
+
+  // Body
+  const body = element("div", "min-w-0 flex-1");
+  const desc = element(
+    "p",
+    "text-sm font-semibold text-ink leading-snug",
+    resource.description
+  );
+  body.append(desc);
+
+  if (resource.url) {
+    const link = document.createElement("a");
+    link.href = resource.url;
+    link.target = "_blank";
+    link.rel = "noopener noreferrer";
+    link.className =
+      "mt-1.5 inline-flex items-center gap-1.5 rounded-lg bg-forest/10 px-2.5 py-1 text-xs font-bold text-forest transition hover:bg-forest hover:text-white";
+    link.textContent = "Open link →";
+    body.append(link);
+  }
+
+  // Timestamp
+  const ts = element(
+    "p",
+    "mt-2 text-[11px] text-ink/35",
+    new Date(resource.created_at).toLocaleDateString(undefined, { dateStyle: "medium" })
+  );
+  body.append(ts);
+
+  card.append(iconWrap, body);
+  return card;
+}
+
+/** Fetch and render all resources for a given course_code. */
+async function loadResources(courseCode) {
+  resourcesList.replaceChildren();
+  const spinner = element("p", "text-sm text-ink/40 italic", "Loading resources…");
+  resourcesList.append(spinner);
+
+  try {
+    const resources = await requestJson(
+      `${API_BASE_URL}/courses/${encodeURIComponent(courseCode.toUpperCase())}/resources`
+    );
+
+    resourcesList.replaceChildren();
+    if (resources.length === 0) {
+      resourcesList.append(
+        element("p", "text-sm text-ink/40 italic", "No resources yet. Be the first to add one!")
+      );
+      return;
+    }
+    const frag = document.createDocumentFragment();
+    resources.forEach((r) => frag.append(createResourceCard(r)));
+    resourcesList.append(frag);
+  } catch {
+    resourcesList.replaceChildren(
+      element("p", "text-sm text-red-600", "Could not load resources.")
+    );
+  }
+}
+
 /** Render search results plus the summary statistics in the hero. */
 function renderPapers(papers) {
   papersList.replaceChildren();
@@ -264,7 +352,19 @@ semesterFilter.addEventListener("change", loadPapers);
 branchFilter.addEventListener("change", loadPapers);
 courseCodeFilter.addEventListener("input", () => {
   window.clearTimeout(searchTimer);
-  searchTimer = window.setTimeout(loadPapers, 350);
+  searchTimer = window.setTimeout(() => {
+    loadPapers();
+
+    // Show / hide the Course Hub depending on whether a code is typed.
+    const code = courseCodeFilter.value.trim();
+    if (code) {
+      courseHubTitle.textContent = code.toUpperCase();
+      courseHub.classList.remove("hidden");
+      loadResources(code);
+    } else {
+      courseHub.classList.add("hidden");
+    }
+  }, 350);
 });
 
 // Event delegation handles every current and future download button with one
@@ -300,3 +400,43 @@ papersList.addEventListener("click", async (event) => {
 
 // Initial page load: the result request also acts as a useful API health check.
 loadPapers();
+
+// ── Resource form submission ───────────────────────────────────────────────────────────
+resourceForm.addEventListener("submit", async (event) => {
+  event.preventDefault();
+
+  const courseCode = courseCodeFilter.value.trim();
+  if (!courseCode) {
+    showToast("Search for a course code first.", "error");
+    return;
+  }
+
+  const body = {
+    description: resourceDescription.value.trim(),
+    url: resourceUrl.value.trim() || null,
+  };
+
+  resourceSubmit.disabled = true;
+  resourceSubmit.textContent = "Saving…";
+
+  try {
+    await requestJson(
+      `${API_BASE_URL}/courses/${encodeURIComponent(courseCode.toUpperCase())}/resources`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      }
+    );
+    showToast("Resource added successfully!");
+    resourceForm.reset();
+    // Close the <details> accordion after submission
+    resourceForm.closest("details").removeAttribute("open");
+    await loadResources(courseCode);
+  } catch (error) {
+    showToast(error.message, "error");
+  } finally {
+    resourceSubmit.disabled = false;
+    resourceSubmit.innerHTML = `<svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M12 5v14M5 12h14" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg> Add Resource`;
+  }
+});

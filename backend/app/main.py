@@ -17,6 +17,7 @@ from sqlalchemy import text
 from app.config import settings
 from app.database import Base, engine
 from app.routers.papers import router as papers_router
+from app.routers.resources import router as resources_router
 
 
 @asynccontextmanager
@@ -55,6 +56,7 @@ app.add_middleware(
 )
 
 app.include_router(papers_router)
+app.include_router(resources_router)
 
 
 @app.get("/api/health", tags=["system"])
