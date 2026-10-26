@@ -151,7 +151,20 @@ function createPaperCard(paper, index) {
   downloadButton.type = "button";
   downloadButton.dataset.downloadId = String(paper.id);
   downloadButton.setAttribute("aria-label", `Download ${paper.title}`);
-  topRow.append(headingGroup, downloadButton);
+
+  const deleteButton = element(
+    "button",
+    "delete-button inline-flex shrink-0 items-center justify-center gap-1.5 rounded-xl border border-red-200 bg-red-50 px-3 py-2.5 text-xs font-extrabold text-red-600 transition hover:border-red-500 hover:bg-red-500 hover:text-white disabled:cursor-wait disabled:opacity-60"
+  );
+  deleteButton.type = "button";
+  deleteButton.dataset.deleteId = String(paper.id);
+  deleteButton.dataset.deleteTitle = paper.title;
+  deleteButton.setAttribute("aria-label", `Delete ${paper.title}`);
+  deleteButton.innerHTML = `<svg class="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M3 6h18M8 6V4h8v2M19 6l-1 14H6L5 6" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg> Delete`;
+
+  const actions = element("div", "flex shrink-0 items-center gap-2");
+  actions.append(downloadButton, deleteButton);
+  topRow.append(headingGroup, actions);
 
   const details = element("div", "mt-4 flex flex-wrap items-center gap-x-5 gap-y-2 border-t border-ink/5 pt-4 text-xs font-medium text-ink/45");
   details.append(
@@ -395,6 +408,35 @@ papersList.addEventListener("click", async (event) => {
   } finally {
     button.disabled = false;
     button.textContent = previousLabel;
+  }
+});
+
+// Delete button — confirms first, then calls DELETE /api/papers/{id}.
+// Removes the PDF from Supabase Storage AND the database row in one call.
+papersList.addEventListener("click", async (event) => {
+  const button = event.target.closest("[data-delete-id]");
+  if (!button) return;
+
+  const title = button.dataset.deleteTitle || "this paper";
+  if (!window.confirm(`Permanently delete "${title}"?\n\nThis removes the file from storage and the database. This cannot be undone.`)) return;
+
+  button.disabled = true;
+  button.textContent = "Deleting…";
+
+  try {
+    const response = await fetch(`${API_BASE_URL}/papers/${button.dataset.deleteId}`, {
+      method: "DELETE",
+    });
+    if (!response.ok) {
+      const payload = await response.json().catch(() => null);
+      throw new Error(getErrorMessage(payload, `Delete failed (${response.status}).`));
+    }
+    showToast(`"${title}" was deleted.`);
+    await loadPapers();
+  } catch (error) {
+    showToast(error.message, "error");
+    button.disabled = false;
+    button.innerHTML = `<svg class="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none"><path d="M3 6h18M8 6V4h8v2M19 6l-1 14H6L5 6" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg> Delete`;
   }
 });
 

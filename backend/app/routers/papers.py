@@ -71,6 +71,24 @@ def download_paper(paper_id: int, db: Session = Depends(get_db)):
     db.refresh(paper)
     return {"id": paper.id, "file_url": paper.file_url, "download_count": paper.download_count}
 
+@router.delete("/{paper_id}", status_code=204)
+def delete_paper(paper_id: int, db: Session = Depends(get_db)):
+    """Delete a paper: removes the file from Supabase Storage then the DB row."""
+    paper = db.query(models.Paper).filter(models.Paper.id == paper_id).first()
+    if not paper:
+        raise HTTPException(status_code=404, detail="Paper not found.")
+
+    # Remove from Supabase Storage (best-effort — don't fail if already gone)
+    try:
+        supabase = create_client(settings.supabase_url, settings.supabase_key)
+        supabase.storage.from_("past_papers").remove([f"{paper.file_hash}.pdf"])
+    except Exception:
+        pass  # File may already be deleted from storage; proceed to DB delete
+
+    db.delete(paper)
+    db.commit()
+    # 204 No Content — no body returned
+
 @router.post("/{paper_id}/vote", response_model=schemas.PaperResponse)
 def vote_paper(paper_id: int, vote: schemas.PaperVote, db: Session = Depends(get_db)):
     paper = db.query(models.Paper).filter(models.Paper.id == paper_id).first()
