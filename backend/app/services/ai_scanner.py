@@ -8,7 +8,10 @@ from app.config import settings
 client = genai.Client(api_key=settings.gemini_api_key)
 
 # Fast lexical keywords
-EXAM_KEYWORDS = ["midterm", "final", "examination", "subject", "semester", "course code", "marks", "time allowed", "questions"]
+EXAM_KEYWORDS = [
+    "midterm", "final", "examination", "subject", "semester",
+    "course code", "marks", "time allowed", "questions", "assignment", "test", "quiz"
+]
 
 def scan_pdf(file_path: Path) -> dict:
     """Hybrid scan: Fast local lexical check first, fallback to Gemini API for images or complex files."""
@@ -37,8 +40,8 @@ def scan_pdf(file_path: Path) -> dict:
         )
         
         prompt = """
-        Analyze this document. Is it a university examination past paper?
-        Look for indicators like Midterm, Final, Examination, Semester, Course Code, Marks, Time Allowed, Instructions, or numbered questions.
+        Analyze this document. Is it a university examination past paper, test, quiz, or academic assignment?
+        Look for indicators like Midterm, Final, Examination, Assignment, Quiz, Semester, Course Code, Marks, Time Allowed, Instructions, or numbered questions.
         Even if it is a scanned photograph, read the text carefully.
         Return ONLY a raw JSON object with no markdown formatting:
         {"is_exam": true, "reason": "short explanation"}

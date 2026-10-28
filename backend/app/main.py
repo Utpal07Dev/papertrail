@@ -85,3 +85,4 @@ if frontend_directory.exists():
         StaticFiles(directory=str(frontend_directory), html=True),
         name="frontend",
     )
+
