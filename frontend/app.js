@@ -44,6 +44,17 @@ const downloadCount = document.querySelector("#download-count");
 const apiStatus = document.querySelector("#api-status");
 const toast = document.querySelector("#toast");
 
+// Dark mode elements
+const darkModeToggle = document.querySelector("#dark-mode-toggle");
+const iconSun = document.querySelector("#icon-sun");
+const iconMoon = document.querySelector("#icon-moon");
+
+// PDF Viewer modal elements
+const pdfViewerModal = document.querySelector("#pdf-viewer-modal");
+const pdfViewerTitle = document.querySelector("#pdf-viewer-title");
+const pdfViewerIframe = document.querySelector("#pdf-viewer-iframe");
+const pdfViewerClose = document.querySelector("#pdf-viewer-close");
+
 // Course Hub elements
 const courseHub = document.querySelector("#course-hub");
 const courseHubTitle = document.querySelector("#course-hub-title");
@@ -65,6 +76,38 @@ const reportModalPaperTitle = document.querySelector("#report-modal-paper-title"
 let toastTimer;
 let searchTimer;
 let currentReportPaperId = null;
+
+// ── Dark Mode Logic ──────────────────────────────────────────────────────────
+
+function applyTheme(isDark) {
+  if (isDark) {
+    document.documentElement.classList.add("dark");
+    document.body.classList.add("dark-bg");
+    if (iconSun && iconMoon) {
+      iconSun.classList.remove("hidden");
+      iconMoon.classList.add("hidden");
+    }
+  } else {
+    document.documentElement.classList.remove("dark");
+    document.body.classList.remove("dark-bg");
+    if (iconSun && iconMoon) {
+      iconSun.classList.add("hidden");
+      iconMoon.classList.remove("hidden");
+    }
+  }
+}
+
+const savedTheme = localStorage.getItem("papervault-theme");
+const prefersDark = window.matchMedia("(prefers-color-scheme: dark)").matches;
+applyTheme(savedTheme === "dark" || (!savedTheme && prefersDark));
+
+if (darkModeToggle) {
+  darkModeToggle.addEventListener("click", () => {
+    const isNowDark = !document.documentElement.classList.contains("dark");
+    applyTheme(isNowDark);
+    localStorage.setItem("papervault-theme", isNowDark ? "dark" : "light");
+  });
+}
 
 /** Convert FastAPI error bodies into one friendly message. */
 function getErrorMessage(payload, fallback = "Something went wrong. Please try again.") {
@@ -99,7 +142,7 @@ function showToast(message, type = "success") {
   toast.textContent = message;
   toast.className = [
     "pointer-events-none fixed bottom-5 left-1/2 z-50 w-[calc(100%-2rem)] max-w-md -translate-x-1/2 rounded-2xl px-4 py-3 text-sm font-semibold text-white shadow-2xl",
-    type === "error" ? "bg-red-700" : "bg-ink",
+    type === "error" ? "bg-red-700" : "bg-ink dark:bg-[#1a2a23] dark:border dark:border-white/10",
   ].join(" ");
 
   toastTimer = window.setTimeout(() => toast.classList.add("hidden"), 4500);
@@ -117,6 +160,33 @@ function element(tag, className, text) {
 function absoluteFileUrl(fileUrl) {
   if (/^https?:\/\//i.test(fileUrl)) return fileUrl;
   return new URL(fileUrl, `${API_ORIGIN}/`).href;
+}
+
+// ── PDF Viewer Modal ────────────────────────────────────────────────────────
+
+function openPdfViewer(url, title) {
+  if (!pdfViewerModal || !pdfViewerIframe) return;
+  pdfViewerTitle.textContent = title || "PDF Document";
+  pdfViewerIframe.src = absoluteFileUrl(url);
+  pdfViewerModal.classList.remove("hidden");
+  pdfViewerModal.classList.add("flex");
+}
+
+function closePdfViewer() {
+  if (!pdfViewerModal || !pdfViewerIframe) return;
+  pdfViewerModal.classList.add("hidden");
+  pdfViewerModal.classList.remove("flex");
+  pdfViewerIframe.src = "";
+}
+
+if (pdfViewerClose) {
+  pdfViewerClose.addEventListener("click", closePdfViewer);
+}
+
+if (pdfViewerModal) {
+  pdfViewerModal.addEventListener("click", (e) => {
+    if (e.target === pdfViewerModal) closePdfViewer();
+  });
 }
 
 // ── Report Modal helpers ────────────────────────────────────────────────────
@@ -147,10 +217,15 @@ reportModal.addEventListener("click", (e) => {
   if (e.target === reportModal) closeReportModal();
 });
 
-// Close on Escape key
+// Close modal on Escape key (both report and PDF viewer)
 document.addEventListener("keydown", (e) => {
-  if (e.key === "Escape" && !reportModal.classList.contains("hidden")) {
-    closeReportModal();
+  if (e.key === "Escape") {
+    if (reportModal && !reportModal.classList.contains("hidden")) {
+      closeReportModal();
+    }
+    if (pdfViewerModal && !pdfViewerModal.classList.contains("hidden")) {
+      closePdfViewer();
+    }
   }
 });
 
@@ -158,14 +233,14 @@ document.addEventListener("keydown", (e) => {
 function createPaperCard(paper, index) {
   const article = element(
     "article",
-    "paper-card group rounded-2xl border border-ink/10 bg-white p-5 shadow-sm transition hover:-translate-y-0.5 hover:border-forest/25 hover:shadow-card sm:p-6"
+    "paper-card group rounded-2xl border border-ink/10 bg-white p-5 shadow-sm transition hover:-translate-y-0.5 hover:border-forest/25 hover:shadow-card sm:p-6 dark:border-white/10 dark:bg-[#1a2a23] dark:hover:border-mint/30"
   );
   article.style.animationDelay = `${Math.min(index * 45, 300)}ms`;
 
   const layout = element("div", "flex items-start gap-4");
   const icon = element(
     "div",
-    "grid h-12 w-12 shrink-0 place-items-center rounded-2xl bg-mint text-forest"
+    "grid h-12 w-12 shrink-0 place-items-center rounded-2xl bg-mint text-forest dark:bg-mint/20 dark:text-mint"
   );
   icon.setAttribute("aria-hidden", "true");
   icon.textContent = "PDF";
@@ -176,31 +251,43 @@ function createPaperCard(paper, index) {
   const headingGroup = element("div", "min-w-0");
   const badges = element("div", "mb-2 flex flex-wrap items-center gap-2");
   badges.append(
-    element("span", "rounded-md bg-forest px-2 py-1 text-[10px] font-extrabold uppercase tracking-wider text-white", paper.course_code),
-    element("span", "rounded-md bg-paper px-2 py-1 text-[10px] font-bold uppercase tracking-wider text-ink/50", paper.exam_type)
+    element("span", "rounded-md bg-forest px-2 py-1 text-[10px] font-extrabold uppercase tracking-wider text-white dark:bg-forest/80", paper.course_code),
+    element("span", "rounded-md bg-paper px-2 py-1 text-[10px] font-bold uppercase tracking-wider text-ink/50 dark:bg-white/10 dark:text-white/60", paper.exam_type)
   );
 
   const title = element(
     "h3",
-    "truncate font-display text-lg font-extrabold tracking-tight text-ink",
+    "truncate font-display text-lg font-extrabold tracking-tight text-ink dark:text-white",
     paper.title
   );
   title.title = paper.title;
   headingGroup.append(badges, title);
 
+  // View PDF Button
+  const viewButton = element(
+    "button",
+    "view-button inline-flex shrink-0 items-center justify-center gap-1.5 rounded-xl border border-ink/15 bg-paper/80 px-3 py-2.5 text-xs font-extrabold text-ink transition hover:border-forest hover:bg-forest hover:text-white disabled:cursor-wait disabled:opacity-60 dark:border-white/15 dark:bg-white/10 dark:text-white dark:hover:border-mint dark:hover:bg-mint dark:hover:text-ink"
+  );
+  viewButton.type = "button";
+  viewButton.dataset.viewUrl = paper.file_url;
+  viewButton.dataset.viewTitle = paper.title;
+  viewButton.setAttribute("aria-label", `View ${paper.title}`);
+  viewButton.innerHTML = `<svg class="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/><circle cx="12" cy="12" r="3" stroke="currentColor" stroke-width="1.8"/></svg> View`;
+
+  // Download PDF Button
   const downloadButton = element(
     "button",
-    "download-button inline-flex shrink-0 items-center justify-center gap-2 rounded-xl border border-forest/20 bg-mint/60 px-4 py-2.5 text-xs font-extrabold text-forest transition hover:border-forest hover:bg-forest hover:text-white disabled:cursor-wait disabled:opacity-60",
+    "download-button inline-flex shrink-0 items-center justify-center gap-2 rounded-xl border border-forest/20 bg-mint/60 px-4 py-2.5 text-xs font-extrabold text-forest transition hover:border-forest hover:bg-forest hover:text-white disabled:cursor-wait disabled:opacity-60 dark:border-mint/30 dark:bg-mint/15 dark:text-mint dark:hover:bg-mint dark:hover:text-ink",
     "Download PDF"
   );
   downloadButton.type = "button";
   downloadButton.dataset.downloadId = String(paper.id);
   downloadButton.setAttribute("aria-label", `Download ${paper.title}`);
 
-  // Report button (replaces old Delete button)
+  // Report button
   const reportButton = element(
     "button",
-    "report-button inline-flex shrink-0 items-center justify-center gap-1.5 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2.5 text-xs font-extrabold text-amber-700 transition hover:border-red-400 hover:bg-red-500 hover:text-white disabled:cursor-wait disabled:opacity-60"
+    "report-button inline-flex shrink-0 items-center justify-center gap-1.5 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2.5 text-xs font-extrabold text-amber-700 transition hover:border-red-400 hover:bg-red-500 hover:text-white disabled:cursor-wait disabled:opacity-60 dark:border-amber-400/20 dark:bg-amber-950/30 dark:text-amber-400 dark:hover:bg-red-600 dark:hover:text-white"
   );
   reportButton.type = "button";
   reportButton.dataset.reportId = String(paper.id);
@@ -212,17 +299,17 @@ function createPaperCard(paper, index) {
   if (paper.report_count > 0) {
     const reportBadge = element(
       "span",
-      "ml-1 inline-flex h-5 min-w-[20px] items-center justify-center rounded-full bg-amber-200 px-1.5 text-[10px] font-extrabold text-amber-800",
+      "ml-1 inline-flex h-5 min-w-[20px] items-center justify-center rounded-full bg-amber-200 px-1.5 text-[10px] font-extrabold text-amber-800 dark:bg-amber-400/30 dark:text-amber-300",
       String(paper.report_count)
     );
     reportButton.append(reportBadge);
   }
 
-  const actions = element("div", "flex shrink-0 items-center gap-2");
-  actions.append(downloadButton, reportButton);
+  const actions = element("div", "flex shrink-0 flex-wrap items-center gap-2");
+  actions.append(viewButton, downloadButton, reportButton);
   topRow.append(headingGroup, actions);
 
-  const details = element("div", "mt-4 flex flex-wrap items-center gap-x-5 gap-y-2 border-t border-ink/5 pt-4 text-xs font-medium text-ink/45");
+  const details = element("div", "mt-4 flex flex-wrap items-center gap-x-5 gap-y-2 border-t border-ink/5 pt-4 text-xs font-medium text-ink/45 dark:border-white/5 dark:text-white/40");
   details.append(
     element("span", "", `Semester ${paper.semester}`),
     element("span", "", paper.branch),
@@ -241,13 +328,13 @@ function createPaperCard(paper, index) {
 function createResourceCard(resource) {
   const card = element(
     "div",
-    "paper-card rounded-2xl border border-ink/10 bg-paper/70 p-4 flex items-start gap-4"
+    "paper-card rounded-2xl border border-ink/10 bg-paper/70 p-4 flex items-start gap-4 dark:border-white/10 dark:bg-white/5"
   );
 
   // Icon
   const iconWrap = element(
     "div",
-    "grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-mint text-forest"
+    "grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-mint text-forest dark:bg-mint/20 dark:text-mint"
   );
   iconWrap.setAttribute("aria-hidden", "true");
   iconWrap.innerHTML = resource.url
@@ -258,7 +345,7 @@ function createResourceCard(resource) {
   const body = element("div", "min-w-0 flex-1");
   const desc = element(
     "p",
-    "text-sm font-semibold text-ink leading-snug",
+    "text-sm font-semibold text-ink leading-snug dark:text-white/90",
     resource.description
   );
   body.append(desc);
@@ -269,7 +356,7 @@ function createResourceCard(resource) {
     link.target = "_blank";
     link.rel = "noopener noreferrer";
     link.className =
-      "mt-1.5 inline-flex items-center gap-1.5 rounded-lg bg-forest/10 px-2.5 py-1 text-xs font-bold text-forest transition hover:bg-forest hover:text-white";
+      "mt-1.5 inline-flex items-center gap-1.5 rounded-lg bg-forest/10 px-2.5 py-1 text-xs font-bold text-forest transition hover:bg-forest hover:text-white dark:bg-mint/10 dark:text-mint dark:hover:bg-mint dark:hover:text-ink";
     link.textContent = "Open link →";
     body.append(link);
   }
@@ -277,7 +364,7 @@ function createResourceCard(resource) {
   // Timestamp
   const ts = element(
     "p",
-    "mt-2 text-[11px] text-ink/35",
+    "mt-2 text-[11px] text-ink/35 dark:text-white/35",
     new Date(resource.created_at).toLocaleDateString(undefined, { dateStyle: "medium" })
   );
   body.append(ts);
@@ -289,7 +376,7 @@ function createResourceCard(resource) {
 /** Fetch and render all resources for a given course_code. */
 async function loadResources(courseCode) {
   resourcesList.replaceChildren();
-  const spinner = element("p", "text-sm text-ink/40 italic", "Loading resources…");
+  const spinner = element("p", "text-sm text-ink/40 italic dark:text-white/30", "Loading resources…");
   resourcesList.append(spinner);
 
   try {
@@ -300,7 +387,7 @@ async function loadResources(courseCode) {
     resourcesList.replaceChildren();
     if (resources.length === 0) {
       resourcesList.append(
-        element("p", "text-sm text-ink/40 italic", "No resources yet. Be the first to add one!")
+        element("p", "text-sm text-ink/40 italic dark:text-white/30", "No resources yet. Be the first to add one!")
       );
       return;
     }
@@ -309,7 +396,7 @@ async function loadResources(courseCode) {
     resourcesList.append(frag);
   } catch {
     resourcesList.replaceChildren(
-      element("p", "text-sm text-red-600", "Could not load resources.")
+      element("p", "text-sm text-red-600 dark:text-red-400", "Could not load resources.")
     );
   }
 }
@@ -325,10 +412,10 @@ function renderPapers(papers) {
   resultsSummary.textContent = `${papers.length} paper${papers.length === 1 ? "" : "s"} found`;
 
   if (papers.length === 0) {
-    const empty = element("div", "rounded-3xl border border-dashed border-ink/15 bg-white/60 px-6 py-16 text-center");
+    const empty = element("div", "rounded-3xl border border-dashed border-ink/15 bg-white/60 px-6 py-16 text-center dark:border-white/10 dark:bg-[#1a2a23]/60");
     empty.append(
-      element("p", "font-display text-xl font-extrabold", "No papers found"),
-      element("p", "mx-auto mt-2 max-w-sm text-sm leading-6 text-ink/45", "Try fewer filters, search part of a course code, or upload the first matching paper.")
+      element("p", "font-display text-xl font-extrabold text-ink dark:text-white", "No papers found"),
+      element("p", "mx-auto mt-2 max-w-sm text-sm leading-6 text-ink/45 dark:text-white/40", "Try fewer filters, search part of a course code, or upload the first matching paper.")
     );
     papersList.append(empty);
     return;
@@ -357,7 +444,7 @@ async function loadPapers() {
     setApiStatus(false);
     papersList.setAttribute("aria-busy", "false");
     papersList.replaceChildren();
-    const errorPanel = element("div", "rounded-2xl border border-red-200 bg-red-50 p-6 text-center text-sm text-red-700", error.message);
+    const errorPanel = element("div", "rounded-2xl border border-red-200 bg-red-50 p-6 text-center text-sm text-red-700 dark:border-red-900/40 dark:bg-red-950/20 dark:text-red-400", error.message);
     papersList.append(errorPanel);
     resultsSummary.textContent = "Could not load papers";
     paperCount.textContent = "—";
@@ -434,6 +521,14 @@ courseCodeFilter.addEventListener("input", () => {
       courseHub.classList.add("hidden");
     }
   }, 350);
+});
+
+// View PDF button listener
+papersList.addEventListener("click", (event) => {
+  const button = event.target.closest("[data-view-url]");
+  if (!button) return;
+
+  openPdfViewer(button.dataset.viewUrl, button.dataset.viewTitle || "PDF Document");
 });
 
 // Event delegation handles every current and future download button with one

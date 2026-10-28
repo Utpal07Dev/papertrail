@@ -20,6 +20,7 @@
     <script src="https://cdn.tailwindcss.com"></script>
     <script>
       tailwind.config = {
+        darkMode: "class",
         theme: {
           extend: {
             colors: {
@@ -40,6 +41,22 @@
         },
       };
     </script>
+
+    <!-- Theme script runs before render to prevent light/dark flash -->
+    <script>
+      (function() {
+        try {
+          const savedTheme = localStorage.getItem("papervault-theme");
+          const prefersDark = window.matchMedia("(prefers-color-scheme: dark)").matches;
+          if (savedTheme === "dark" || (!savedTheme && prefersDark)) {
+            document.documentElement.classList.add("dark");
+          } else {
+            document.documentElement.classList.remove("dark");
+          }
+        } catch (e) {}
+      })();
+    </script>
+
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link
@@ -47,11 +64,36 @@
       rel="stylesheet"
     />
     <style>
-      /* A few details that are clearer in plain CSS than long utility lists. */
       body {
         background:
           radial-gradient(circle at 8% 5%, rgba(220, 236, 223, 0.9), transparent 28rem),
           #f6f4ed;
+      }
+
+      /* Dark mode root styles */
+      html.dark {
+        color-scheme: dark;
+      }
+
+      html.dark body,
+      body.dark-bg {
+        background:
+          radial-gradient(circle at 8% 5%, rgba(35, 72, 60, 0.45), transparent 28rem),
+          #0f1714 !important;
+        color: #e5ede8 !important;
+      }
+
+      /* Fix native select & option popups in dark mode across Windows, macOS, Android, iOS */
+      html.dark select,
+      html.dark select option,
+      html.dark datalist option {
+        background-color: #1a2a23 !important;
+        color: #f6f4ed !important;
+      }
+
+      html.dark input,
+      html.dark textarea {
+        color-scheme: dark;
       }
 
       .soft-grid {
@@ -65,6 +107,11 @@
         outline: none;
         border-color: #23483c;
         box-shadow: 0 0 0 3px rgba(35, 72, 60, 0.12);
+      }
+
+      .dark .field:focus {
+        border-color: #dcecdf !important;
+        box-shadow: 0 0 0 3px rgba(220, 236, 223, 0.18) !important;
       }
 
       .paper-card {
@@ -82,16 +129,22 @@
 
       /* Report modal backdrop */
       .modal-backdrop {
-        background: rgba(23, 35, 31, 0.55);
+        background: rgba(10, 20, 16, 0.7);
         backdrop-filter: blur(4px);
       }
+
+      /* PDF Viewer modal */
+      .pdf-viewer-backdrop {
+        background: rgba(0, 0, 0, 0.8);
+        backdrop-filter: blur(6px);
+      }
     </style>
-    <script src="app.js" defer></script>
+    <script src="app.js?v=2" defer></script>
   </head>
 
-  <body class="min-h-screen font-sans text-ink antialiased">
+  <body class="min-h-screen font-sans text-ink antialiased dark:bg-[#0f1714] dark:text-white/90">
     <!-- Top navigation and API status -->
-    <header class="border-b border-ink/10 bg-paper/80 backdrop-blur-xl">
+    <header class="border-b border-ink/10 bg-paper/80 backdrop-blur-xl dark:border-white/10 dark:bg-[#141f1a]/90">
       <div class="mx-auto flex max-w-7xl items-center justify-between px-5 py-4 lg:px-8">
         <a href="#" class="group flex items-center gap-3" aria-label="PaperVault home">
           <span class="grid h-10 w-10 place-items-center rounded-xl bg-forest text-white shadow-lg shadow-forest/20">
@@ -102,13 +155,25 @@
           </span>
           <span>
             <span class="block font-display text-lg font-extrabold leading-none tracking-tight">PaperVault</span>
-            <span class="mt-1 block text-[10px] font-bold uppercase tracking-[0.2em] text-ink/45">Campus archive</span>
+            <span class="mt-1 block text-[10px] font-bold uppercase tracking-[0.2em] text-ink/45 dark:text-white/40">Campus archive</span>
           </span>
         </a>
 
         <div class="flex items-center gap-3">
-          <a id="api-docs-link" href="/docs" target="_blank" rel="noopener" class="hidden text-sm font-semibold text-ink/55 transition hover:text-forest sm:block">API docs</a>
-          <div id="api-status" class="flex items-center gap-2 rounded-full border border-ink/10 bg-white/70 px-3 py-1.5 text-xs font-semibold text-ink/55">
+          <!-- Dark mode toggle -->
+          <button id="dark-mode-toggle" type="button" class="grid h-9 w-9 place-items-center rounded-xl border border-ink/10 text-ink/50 transition hover:border-forest hover:text-forest dark:border-white/15 dark:text-white/60 dark:hover:border-mint dark:hover:text-mint" aria-label="Toggle dark mode">
+            <!-- Sun icon (shown in dark mode) -->
+            <svg id="icon-sun" class="hidden h-4.5 w-4.5" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+              <circle cx="12" cy="12" r="4" stroke="currentColor" stroke-width="1.8"/>
+              <path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M4.93 19.07l1.41-1.41M17.66 6.34l1.41-1.41" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
+            </svg>
+            <!-- Moon icon (shown in light mode) -->
+            <svg id="icon-moon" class="h-4.5 w-4.5" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+              <path d="M21 12.79A9 9 0 1 1 11.21 3a7 7 0 0 0 9.79 9.79Z" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+            </svg>
+          </button>
+          <a id="api-docs-link" href="/docs" target="_blank" rel="noopener" class="hidden text-sm font-semibold text-ink/55 transition hover:text-forest dark:text-white/50 dark:hover:text-mint sm:block">API docs</a>
+          <div id="api-status" class="flex items-center gap-2 rounded-full border border-ink/10 bg-white/70 px-3 py-1.5 text-xs font-semibold text-ink/55 dark:border-white/15 dark:bg-white/10 dark:text-white/50">
             <span class="h-2 w-2 animate-pulse rounded-full bg-amber-500"></span>
             Connecting
           </div>
@@ -149,7 +214,7 @@
 
       <!-- Main workspace: upload panel + searchable repository. -->
       <section class="mx-auto grid max-w-7xl gap-7 px-5 py-10 lg:grid-cols-[360px_minmax(0,1fr)] lg:items-start lg:px-8 lg:py-14">
-        <aside class="rounded-3xl border border-ink/10 bg-white p-6 shadow-card lg:sticky lg:top-6">
+        <aside class="rounded-3xl border border-ink/10 bg-white p-6 shadow-card lg:sticky lg:top-6 dark:border-white/10 dark:bg-[#1a2a23]">
           <div class="mb-6 flex items-start justify-between gap-4">
             <div>
               <p class="text-xs font-bold uppercase tracking-[0.18em] text-ember">Contribute</p>
@@ -164,14 +229,14 @@
 
           <form id="upload-form" class="space-y-4">
             <div>
-              <label for="title" class="mb-1.5 block text-xs font-bold text-ink/65">Paper title</label>
-              <input id="title" name="title" type="text" required minlength="2" maxlength="255" placeholder="Data Structures Final 2024" class="field w-full rounded-xl border border-ink/15 bg-paper/60 px-3.5 py-2.5 text-sm transition placeholder:text-ink/30" />
+              <label for="title" class="mb-1.5 block text-xs font-bold text-ink/65 dark:text-white/60">Paper title</label>
+              <input id="title" name="title" type="text" required minlength="2" maxlength="255" placeholder="Data Structures Final 2024" class="field w-full rounded-xl border border-ink/15 bg-paper/60 px-3.5 py-2.5 text-sm transition placeholder:text-ink/30 dark:border-white/15 dark:bg-[#14221c] dark:text-white dark:placeholder:text-white/25" />
             </div>
 
             <div class="grid grid-cols-2 gap-3">
               <div>
-                <label for="semester" class="mb-1.5 block text-xs font-bold text-ink/65">Semester</label>
-                <select id="semester" name="semester" required class="field w-full rounded-xl border border-ink/15 bg-paper/60 px-3.5 py-2.5 text-sm transition">
+                <label for="semester" class="mb-1.5 block text-xs font-bold text-ink/65 dark:text-white/60">Semester</label>
+                <select id="semester" name="semester" required class="field w-full rounded-xl border border-ink/15 bg-paper/60 px-3.5 py-2.5 text-sm transition dark:border-white/15 dark:bg-[#14221c] dark:text-white">
                   <option value="">Select</option>
                   <option value="1">1</option><option value="2">2</option>
                   <option value="3">3</option><option value="4">4</option>
@@ -182,8 +247,8 @@
                 </select>
               </div>
               <div>
-                <label for="branch" class="mb-1.5 block text-xs font-bold text-ink/65">Branch</label>
-                <input id="branch" name="branch" list="branch-options" required minlength="2" maxlength="100" placeholder="CSE" class="field w-full rounded-xl border border-ink/15 bg-paper/60 px-3.5 py-2.5 text-sm uppercase transition placeholder:normal-case placeholder:text-ink/30" />
+                <label for="branch" class="mb-1.5 block text-xs font-bold text-ink/65 dark:text-white/60">Branch</label>
+                <input id="branch" name="branch" list="branch-options" required minlength="2" maxlength="100" placeholder="CSE" class="field w-full rounded-xl border border-ink/15 bg-paper/60 px-3.5 py-2.5 text-sm uppercase transition placeholder:normal-case placeholder:text-ink/30 dark:border-white/15 dark:bg-[#14221c] dark:text-white dark:placeholder:text-white/25" />
               </div>
             </div>
 
@@ -191,30 +256,32 @@
               <option value="CSE"></option><option value="ECE"></option>
               <option value="EEE"></option><option value="MECH"></option>
               <option value="CIVIL"></option><option value="IT"></option>
+              <option value="AIE"></option>
             </datalist>
 
             <div class="grid grid-cols-2 gap-3">
               <div>
-                <label for="course_code" class="mb-1.5 block text-xs font-bold text-ink/65">Course code</label>
-                <input id="course_code" name="course_code" type="text" required minlength="2" maxlength="50" placeholder="19CSE201" class="field w-full rounded-xl border border-ink/15 bg-paper/60 px-3.5 py-2.5 text-sm uppercase transition placeholder:text-ink/30" />
+                <label for="course_code" class="mb-1.5 block text-xs font-bold text-ink/65 dark:text-white/60">Course code</label>
+                <input id="course_code" name="course_code" type="text" required minlength="2" maxlength="50" placeholder="19CSE201" class="field w-full rounded-xl border border-ink/15 bg-paper/60 px-3.5 py-2.5 text-sm uppercase transition placeholder:text-ink/30 dark:border-white/15 dark:bg-[#14221c] dark:text-white dark:placeholder:text-white/25" />
               </div>
               <div>
-                <label for="exam_type" class="mb-1.5 block text-xs font-bold text-ink/65">Exam type</label>
-                <select id="exam_type" name="exam_type" required class="field w-full rounded-xl border border-ink/15 bg-paper/60 px-3.5 py-2.5 text-sm transition">
+                <label for="exam_type" class="mb-1.5 block text-xs font-bold text-ink/65 dark:text-white/60">Exam type</label>
+                <select id="exam_type" name="exam_type" required class="field w-full rounded-xl border border-ink/15 bg-paper/60 px-3.5 py-2.5 text-sm transition dark:border-white/15 dark:bg-[#14221c] dark:text-white">
                   <option value="">Select</option>
                   <option>Midterm</option><option>Final</option>
                   <option>Supplementary</option><option>Quiz</option>
+                  <option>Assignment</option>
                 </select>
               </div>
             </div>
 
             <div>
-              <label for="file" id="file-drop-label" class="group block cursor-pointer rounded-2xl border-2 border-dashed border-ink/15 bg-paper/60 px-4 py-5 text-center transition hover:border-forest/40 hover:bg-mint/40">
-                <svg class="mx-auto h-7 w-7 text-forest/60 transition group-hover:-translate-y-0.5" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+              <label for="file" id="file-drop-label" class="group block cursor-pointer rounded-2xl border-2 border-dashed border-ink/15 bg-paper/60 px-4 py-5 text-center transition hover:border-forest/40 hover:bg-mint/40 dark:border-white/15 dark:bg-[#14221c] dark:hover:border-mint/40 dark:hover:bg-mint/10">
+                <svg class="mx-auto h-7 w-7 text-forest/60 transition group-hover:-translate-y-0.5 dark:text-mint/60" viewBox="0 0 24 24" fill="none" aria-hidden="true">
                   <path d="M12 15V5m0 0L8.5 8.5M12 5l3.5 3.5M6 13.5a4 4 0 0 0 .5 7.5h11a3.5 3.5 0 0 0 .5-6.96A6 6 0 0 0 6.4 12" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/>
                 </svg>
-                <span id="file-label" class="mt-2 block truncate text-sm font-bold text-ink/70">Choose a PDF file</span>
-                <span class="mt-1 block text-[11px] text-ink/40">PDF only · maximum 15 MB</span>
+                <span id="file-label" class="mt-2 block truncate text-sm font-bold text-ink/70 dark:text-white/70">Choose a PDF file</span>
+                <span class="mt-1 block text-[11px] text-ink/40 dark:text-white/35">PDF only · maximum 15 MB</span>
               </label>
               <input id="file" name="file" type="file" accept="application/pdf,.pdf" required class="sr-only" />
             </div>
@@ -226,30 +293,30 @@
               </svg>
             </button>
           </form>
-          <p class="mt-4 text-center text-[11px] leading-5 text-ink/40">A SHA-256 fingerprint prevents the same PDF from being uploaded twice.</p>
+          <p class="mt-4 text-center text-[11px] leading-5 text-ink/40 dark:text-white/35">A SHA-256 fingerprint prevents the same PDF from being uploaded twice.</p>
         </aside>
 
         <div class="min-w-0">
           <div class="mb-5 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
             <div>
-              <p class="text-xs font-bold uppercase tracking-[0.18em] text-forest/60">The collection</p>
+              <p class="text-xs font-bold uppercase tracking-[0.18em] text-forest/60 dark:text-mint/60">The collection</p>
               <h2 class="mt-2 font-display text-3xl font-extrabold tracking-tight">Browse past papers</h2>
             </div>
-            <p id="results-summary" class="text-sm font-medium text-ink/45" aria-live="polite">Loading papers…</p>
+            <p id="results-summary" class="text-sm font-medium text-ink/45 dark:text-white/40" aria-live="polite">Loading papers…</p>
           </div>
 
           <!-- Search submits immediately on select changes and is debounced for typing. -->
-          <form id="search-form" class="mb-6 grid gap-3 rounded-2xl border border-ink/10 bg-white p-3 shadow-sm sm:grid-cols-[1fr_150px_150px_auto]" role="search">
+          <form id="search-form" class="mb-6 grid gap-3 rounded-2xl border border-ink/10 bg-white p-3 shadow-sm sm:grid-cols-[1fr_150px_150px_auto] dark:border-white/10 dark:bg-[#1a2a23]" role="search">
             <label class="relative block">
               <span class="sr-only">Search by course code</span>
-              <svg class="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-ink/35" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+              <svg class="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-ink/35 dark:text-white/30" viewBox="0 0 24 24" fill="none" aria-hidden="true">
                 <circle cx="10.5" cy="10.5" r="6" stroke="currentColor" stroke-width="1.8"/><path d="m15 15 4 4" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
               </svg>
-              <input id="search-course-code" name="course_code" type="search" maxlength="50" placeholder="Search course code, e.g. cse201" class="field w-full rounded-xl border border-ink/10 bg-paper/50 py-2.5 pl-10 pr-3 text-sm placeholder:text-ink/30" />
+              <input id="search-course-code" name="course_code" type="search" maxlength="50" placeholder="Search course code, e.g. cse201" class="field w-full rounded-xl border border-ink/10 bg-paper/50 py-2.5 pl-10 pr-3 text-sm placeholder:text-ink/30 dark:border-white/15 dark:bg-[#14221c] dark:text-white dark:placeholder:text-white/25" />
             </label>
             <label>
               <span class="sr-only">Filter by semester</span>
-              <select id="search-semester" name="semester" class="field w-full rounded-xl border border-ink/10 bg-paper/50 px-3 py-2.5 text-sm">
+              <select id="search-semester" name="semester" class="field w-full rounded-xl border border-ink/10 bg-paper/50 px-3 py-2.5 text-sm dark:border-white/15 dark:bg-[#14221c] dark:text-white">
                 <option value="">All semesters</option>
                 <option value="1">Semester 1</option><option value="2">Semester 2</option>
                 <option value="3">Semester 3</option><option value="4">Semester 4</option>
@@ -261,31 +328,32 @@
             </label>
             <label>
               <span class="sr-only">Filter by branch</span>
-              <select id="search-branch" name="branch" class="field w-full rounded-xl border border-ink/10 bg-paper/50 px-3 py-2.5 text-sm">
+              <select id="search-branch" name="branch" class="field w-full rounded-xl border border-ink/10 bg-paper/50 px-3 py-2.5 text-sm dark:border-white/15 dark:bg-[#14221c] dark:text-white">
                 <option value="">All branches</option>
                 <option value="CSE">CSE</option><option value="ECE">ECE</option>
                 <option value="EEE">EEE</option><option value="MECH">MECH</option>
                 <option value="CIVIL">CIVIL</option><option value="IT">IT</option>
+                <option value="AIE">AIE</option>
               </select>
             </label>
-            <button type="submit" class="rounded-xl bg-forest px-5 py-2.5 text-sm font-bold text-white transition hover:bg-ink">Search</button>
+            <button type="submit" class="rounded-xl bg-forest px-5 py-2.5 text-sm font-bold text-white transition hover:bg-ink dark:bg-mint dark:text-ink dark:hover:bg-white">Search</button>
           </form>
 
           <div id="papers-list" class="space-y-3" aria-live="polite" aria-busy="true">
             <!-- app.js replaces these skeletons with live API results. -->
-            <div class="animate-pulse rounded-2xl border border-ink/5 bg-white p-5"><div class="h-4 w-1/3 rounded bg-ink/10"></div><div class="mt-4 h-3 w-2/3 rounded bg-ink/5"></div></div>
-            <div class="animate-pulse rounded-2xl border border-ink/5 bg-white p-5"><div class="h-4 w-2/5 rounded bg-ink/10"></div><div class="mt-4 h-3 w-1/2 rounded bg-ink/5"></div></div>
+            <div class="animate-pulse rounded-2xl border border-ink/5 bg-white p-5 dark:border-white/5 dark:bg-[#1a2a23]"><div class="h-4 w-1/3 rounded bg-ink/10 dark:bg-white/10"></div><div class="mt-4 h-3 w-2/3 rounded bg-ink/5 dark:bg-white/5"></div></div>
+            <div class="animate-pulse rounded-2xl border border-ink/5 bg-white p-5 dark:border-white/5 dark:bg-[#1a2a23]"><div class="h-4 w-2/5 rounded bg-ink/10 dark:bg-white/10"></div><div class="mt-4 h-3 w-1/2 rounded bg-ink/5 dark:bg-white/5"></div></div>
           </div>
 
           <!-- ═══ Course Hub ═══════════════════════════════════════════════ -->
           <!-- Shown by app.js only when a specific course_code is searched. -->
-          <section id="course-hub" class="hidden mt-8 rounded-3xl border border-forest/20 bg-white p-6 shadow-card">
+          <section id="course-hub" class="hidden mt-8 rounded-3xl border border-forest/20 bg-white p-6 shadow-card dark:border-mint/20 dark:bg-[#1a2a23]">
             <div class="mb-6 flex items-start justify-between gap-4">
               <div>
-                <p class="text-xs font-bold uppercase tracking-[0.18em] text-forest/60">Course Hub</p>
+                <p class="text-xs font-bold uppercase tracking-[0.18em] text-forest/60 dark:text-mint/60">Course Hub</p>
                 <h2 class="mt-2 font-display text-2xl font-extrabold tracking-tight">
                   Study Resources —
-                  <span id="course-hub-title" class="text-forest"></span>
+                  <span id="course-hub-title" class="text-forest dark:text-mint"></span>
                 </h2>
               </div>
               <span class="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-mint text-forest" aria-hidden="true">
@@ -297,12 +365,12 @@
 
             <!-- Resource cards injected by app.js -->
             <div id="resources-list" class="mb-6 space-y-3" aria-live="polite">
-              <p class="text-sm text-ink/40 italic">No resources yet. Be the first to add one!</p>
+              <p class="text-sm text-ink/40 italic dark:text-white/30">No resources yet. Be the first to add one!</p>
             </div>
 
             <!-- Add Resource Form -->
-            <details class="group rounded-2xl border border-ink/10 bg-paper/60">
-              <summary class="flex cursor-pointer list-none items-center justify-between gap-3 px-5 py-4 text-sm font-bold text-ink/70 transition hover:text-forest">
+            <details class="group rounded-2xl border border-ink/10 bg-paper/60 dark:border-white/10 dark:bg-[#14221c]">
+              <summary class="flex cursor-pointer list-none items-center justify-between gap-3 px-5 py-4 text-sm font-bold text-ink/70 transition hover:text-forest dark:text-white/60 dark:hover:text-mint">
                 <span class="flex items-center gap-2">
                   <svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" aria-hidden="true">
                     <circle cx="12" cy="12" r="9" stroke="currentColor" stroke-width="1.8"/>
@@ -315,9 +383,9 @@
                 </svg>
               </summary>
 
-              <form id="resource-form" class="space-y-4 border-t border-ink/8 px-5 py-5">
+              <form id="resource-form" class="space-y-4 border-t border-ink/8 px-5 py-5 dark:border-white/10">
                 <div>
-                  <label for="resource-description" class="mb-1.5 block text-xs font-bold text-ink/65">Description <span class="text-ember">*</span></label>
+                  <label for="resource-description" class="mb-1.5 block text-xs font-bold text-ink/65 dark:text-white/60">Description <span class="text-ember">*</span></label>
                   <input
                     id="resource-description"
                     name="description"
@@ -326,24 +394,24 @@
                     minlength="3"
                     maxlength="500"
                     placeholder="e.g. Full lecture playlist by Prof. Singh"
-                    class="field w-full rounded-xl border border-ink/15 bg-white px-3.5 py-2.5 text-sm transition placeholder:text-ink/30"
+                    class="field w-full rounded-xl border border-ink/15 bg-white px-3.5 py-2.5 text-sm transition placeholder:text-ink/30 dark:border-white/15 dark:bg-[#0f1714] dark:text-white dark:placeholder:text-white/25"
                   />
                 </div>
                 <div>
-                  <label for="resource-url" class="mb-1.5 block text-xs font-bold text-ink/65">URL <span class="text-ink/35 font-normal">(optional)</span></label>
+                  <label for="resource-url" class="mb-1.5 block text-xs font-bold text-ink/65 dark:text-white/60">URL <span class="text-ink/35 font-normal dark:text-white/30">(optional)</span></label>
                   <input
                     id="resource-url"
                     name="url"
                     type="url"
                     maxlength="1000"
                     placeholder="https://youtube.com/playlist?list=..."
-                    class="field w-full rounded-xl border border-ink/15 bg-white px-3.5 py-2.5 text-sm transition placeholder:text-ink/30"
+                    class="field w-full rounded-xl border border-ink/15 bg-white px-3.5 py-2.5 text-sm transition placeholder:text-ink/30 dark:border-white/15 dark:bg-[#0f1714] dark:text-white dark:placeholder:text-white/25"
                   />
                 </div>
                 <button
                   id="resource-submit"
                   type="submit"
-                  class="flex items-center gap-2 rounded-xl bg-forest px-5 py-2.5 text-sm font-bold text-white transition hover:-translate-y-0.5 hover:bg-ink disabled:cursor-not-allowed disabled:opacity-60"
+                  class="flex items-center gap-2 rounded-xl bg-forest px-5 py-2.5 text-sm font-bold text-white transition hover:-translate-y-0.5 hover:bg-ink disabled:cursor-not-allowed disabled:opacity-60 dark:bg-mint dark:text-ink dark:hover:bg-white"
                 >
                   <svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" aria-hidden="true">
                     <path d="M12 5v14M5 12h14" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
@@ -357,8 +425,8 @@
       </section>
     </main>
 
-    <footer class="border-t border-ink/10 bg-white/40">
-      <div class="mx-auto flex max-w-7xl flex-col gap-2 px-5 py-7 text-xs text-ink/45 sm:flex-row sm:items-center sm:justify-between lg:px-8">
+    <footer class="border-t border-ink/10 bg-white/40 dark:border-white/10 dark:bg-[#141f1a]">
+      <div class="mx-auto flex max-w-7xl flex-col gap-2 px-5 py-7 text-xs text-ink/45 sm:flex-row sm:items-center sm:justify-between lg:px-8 dark:text-white/35">
         <p>PaperVault · University Past Paper Repository</p>
         <p>FastAPI · PostgreSQL · SQLAlchemy · Vanilla JavaScript</p>
       </div>
@@ -366,13 +434,13 @@
 
     <!-- Report Modal -->
     <div id="report-modal" class="fixed inset-0 z-50 hidden items-center justify-center modal-backdrop" role="dialog" aria-modal="true" aria-labelledby="report-modal-title">
-      <div class="mx-4 w-full max-w-md rounded-3xl border border-ink/10 bg-white p-6 shadow-2xl">
+      <div class="mx-4 w-full max-w-md rounded-3xl border border-ink/10 bg-white p-6 shadow-2xl dark:border-white/15 dark:bg-[#1a2a23]">
         <div class="mb-5 flex items-start justify-between gap-4">
           <div>
             <h3 id="report-modal-title" class="font-display text-xl font-extrabold tracking-tight">Report this paper</h3>
-            <p id="report-modal-paper-title" class="mt-1 text-sm text-ink/50 truncate max-w-[280px]"></p>
+            <p id="report-modal-paper-title" class="mt-1 text-sm text-ink/50 truncate max-w-[280px] dark:text-white/40"></p>
           </div>
-          <button id="report-modal-close" type="button" class="grid h-9 w-9 shrink-0 place-items-center rounded-xl border border-ink/10 text-ink/40 transition hover:border-red-300 hover:bg-red-50 hover:text-red-600" aria-label="Close">
+          <button id="report-modal-close" type="button" class="grid h-9 w-9 shrink-0 place-items-center rounded-xl border border-ink/10 text-ink/40 transition hover:border-red-300 hover:bg-red-50 hover:text-red-600 dark:border-white/15 dark:text-white/40" aria-label="Close">
             <svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" aria-hidden="true">
               <path d="M18 6 6 18M6 6l12 12" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
             </svg>
@@ -381,25 +449,25 @@
 
         <form id="report-form" class="space-y-4">
           <div>
-            <label for="report-reason" class="mb-1.5 block text-xs font-bold text-ink/65">Reason for reporting <span class="text-ember">*</span></label>
+            <label for="report-reason" class="mb-1.5 block text-xs font-bold text-ink/65 dark:text-white/60">Reason for reporting <span class="text-ember">*</span></label>
             <div class="space-y-2 mb-3">
-              <label class="flex items-center gap-2.5 cursor-pointer rounded-xl border border-ink/10 px-3.5 py-2.5 text-sm transition hover:border-red-300 hover:bg-red-50 has-[:checked]:border-red-400 has-[:checked]:bg-red-50">
+              <label class="flex items-center gap-2.5 cursor-pointer rounded-xl border border-ink/10 px-3.5 py-2.5 text-sm transition hover:border-red-300 hover:bg-red-50 has-[:checked]:border-red-400 has-[:checked]:bg-red-50 dark:border-white/15 dark:hover:border-red-400/50 dark:hover:bg-red-900/20 dark:has-[:checked]:border-red-400/60 dark:has-[:checked]:bg-red-900/30">
                 <input type="radio" name="report-preset" value="Wrong or irrelevant content" class="accent-red-500" />
                 <span>Wrong or irrelevant content</span>
               </label>
-              <label class="flex items-center gap-2.5 cursor-pointer rounded-xl border border-ink/10 px-3.5 py-2.5 text-sm transition hover:border-red-300 hover:bg-red-50 has-[:checked]:border-red-400 has-[:checked]:bg-red-50">
+              <label class="flex items-center gap-2.5 cursor-pointer rounded-xl border border-ink/10 px-3.5 py-2.5 text-sm transition hover:border-red-300 hover:bg-red-50 has-[:checked]:border-red-400 has-[:checked]:bg-red-50 dark:border-white/15 dark:hover:border-red-400/50 dark:hover:bg-red-900/20 dark:has-[:checked]:border-red-400/60 dark:has-[:checked]:bg-red-900/30">
                 <input type="radio" name="report-preset" value="Duplicate paper" class="accent-red-500" />
                 <span>Duplicate paper</span>
               </label>
-              <label class="flex items-center gap-2.5 cursor-pointer rounded-xl border border-ink/10 px-3.5 py-2.5 text-sm transition hover:border-red-300 hover:bg-red-50 has-[:checked]:border-red-400 has-[:checked]:bg-red-50">
+              <label class="flex items-center gap-2.5 cursor-pointer rounded-xl border border-ink/10 px-3.5 py-2.5 text-sm transition hover:border-red-300 hover:bg-red-50 has-[:checked]:border-red-400 has-[:checked]:bg-red-50 dark:border-white/15 dark:hover:border-red-400/50 dark:hover:bg-red-900/20 dark:has-[:checked]:border-red-400/60 dark:has-[:checked]:bg-red-900/30">
                 <input type="radio" name="report-preset" value="Low quality / unreadable" class="accent-red-500" />
                 <span>Low quality / unreadable</span>
               </label>
-              <label class="flex items-center gap-2.5 cursor-pointer rounded-xl border border-ink/10 px-3.5 py-2.5 text-sm transition hover:border-red-300 hover:bg-red-50 has-[:checked]:border-red-400 has-[:checked]:bg-red-50">
+              <label class="flex items-center gap-2.5 cursor-pointer rounded-xl border border-ink/10 px-3.5 py-2.5 text-sm transition hover:border-red-300 hover:bg-red-50 has-[:checked]:border-red-400 has-[:checked]:bg-red-50 dark:border-white/15 dark:hover:border-red-400/50 dark:hover:bg-red-900/20 dark:has-[:checked]:border-red-400/60 dark:has-[:checked]:bg-red-900/30">
                 <input type="radio" name="report-preset" value="Incorrect metadata (wrong semester, branch, etc.)" class="accent-red-500" />
                 <span>Incorrect metadata</span>
               </label>
-              <label class="flex items-center gap-2.5 cursor-pointer rounded-xl border border-ink/10 px-3.5 py-2.5 text-sm transition hover:border-red-300 hover:bg-red-50 has-[:checked]:border-red-400 has-[:checked]:bg-red-50">
+              <label class="flex items-center gap-2.5 cursor-pointer rounded-xl border border-ink/10 px-3.5 py-2.5 text-sm transition hover:border-red-300 hover:bg-red-50 has-[:checked]:border-red-400 has-[:checked]:bg-red-50 dark:border-white/15 dark:hover:border-red-400/50 dark:hover:bg-red-900/20 dark:has-[:checked]:border-red-400/60 dark:has-[:checked]:bg-red-900/30">
                 <input type="radio" name="report-preset" value="" class="accent-red-500" data-custom />
                 <span>Other (specify below)</span>
               </label>
@@ -410,7 +478,7 @@
               rows="2"
               maxlength="500"
               placeholder="Provide more detail (optional for preset reasons)..."
-              class="field w-full rounded-xl border border-ink/15 bg-paper/60 px-3.5 py-2.5 text-sm transition placeholder:text-ink/30 resize-none"
+              class="field w-full rounded-xl border border-ink/15 bg-paper/60 px-3.5 py-2.5 text-sm transition placeholder:text-ink/30 resize-none dark:border-white/15 dark:bg-[#14221c] dark:text-white dark:placeholder:text-white/25"
             ></textarea>
           </div>
 
@@ -421,11 +489,28 @@
               </svg>
               Submit Report
             </button>
-            <button id="report-cancel" type="button" class="rounded-xl border border-ink/15 px-5 py-2.5 text-sm font-bold text-ink/60 transition hover:border-ink/30 hover:text-ink">
+            <button id="report-cancel" type="button" class="rounded-xl border border-ink/15 px-5 py-2.5 text-sm font-bold text-ink/60 transition hover:border-ink/30 hover:text-ink dark:border-white/15 dark:text-white/50 dark:hover:border-white/30 dark:hover:text-white">
               Cancel
             </button>
           </div>
         </form>
+      </div>
+    </div>
+
+    <!-- PDF Viewer Modal -->
+    <div id="pdf-viewer-modal" class="fixed inset-0 z-50 hidden items-center justify-center pdf-viewer-backdrop" role="dialog" aria-modal="true" aria-labelledby="pdf-viewer-title">
+      <div class="mx-4 flex h-[90vh] w-full max-w-5xl flex-col rounded-3xl border border-ink/10 bg-white shadow-2xl overflow-hidden dark:border-white/15 dark:bg-[#1a2a23]">
+        <div class="flex items-center justify-between border-b border-ink/10 px-6 py-4 dark:border-white/10">
+          <h3 id="pdf-viewer-title" class="truncate font-display text-lg font-extrabold tracking-tight"></h3>
+          <button id="pdf-viewer-close" type="button" class="grid h-9 w-9 shrink-0 place-items-center rounded-xl border border-ink/10 text-ink/40 transition hover:border-red-300 hover:bg-red-50 hover:text-red-600 dark:border-white/15 dark:text-white/40" aria-label="Close viewer">
+            <svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+              <path d="M18 6 6 18M6 6l12 12" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+            </svg>
+          </button>
+        </div>
+        <div class="flex-1 bg-gray-100 dark:bg-[#0f1714]">
+          <iframe id="pdf-viewer-iframe" class="h-full w-full" title="PDF Viewer"></iframe>
+        </div>
       </div>
     </div>
 
