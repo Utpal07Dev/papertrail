@@ -71,12 +71,9 @@ def download_paper(paper_id: int, db: Session = Depends(get_db)):
     db.refresh(paper)
     return {"id": paper.id, "file_url": paper.file_url, "download_count": paper.download_count}
 
-@router.delete("/{paper_id}", status_code=204)
-def delete_paper(paper_id: int, db: Session = Depends(get_db)):
-    """Delete a paper: removes the file from Supabase Storage then the DB row."""
-    paper = db.query(models.Paper).filter(models.Paper.id == paper_id).first()
-    if not paper:
-        raise HTTPException(status_code=404, detail="Paper not found.")
+
+def _delete_paper(paper: models.Paper, db: Session) -> None:
+    """Remove a paper's file from Supabase Storage and delete the DB row."""
 
     # Remove from Supabase Storage (best-effort — don't fail if already gone)
     try:
@@ -87,7 +84,44 @@ def delete_paper(paper_id: int, db: Session = Depends(get_db)):
 
     db.delete(paper)
     db.commit()
-    # 204 No Content — no body returned
+
+
+@router.post("/{paper_id}/report", response_model=schemas.PaperReportResponse, status_code=201)
+def report_paper(paper_id: int, body: schemas.PaperReportCreate, db: Session = Depends(get_db)):
+    """Report a paper with a reason.
+
+    Each report is stored individually. When the total number of reports
+    reaches the configured threshold, the paper (and its file) are
+    automatically deleted.
+    """
+
+    paper = db.query(models.Paper).filter(models.Paper.id == paper_id).first()
+    if not paper:
+        raise HTTPException(status_code=404, detail="Paper not found.")
+
+    reason = body.reason.strip()
+    if not reason:
+        raise HTTPException(status_code=422, detail="A report reason is required.")
+
+    # Create the report
+    report = models.PaperReport(paper_id=paper.id, reason=reason)
+    db.add(report)
+
+    # Increment the denormalized counter
+    paper.report_count = (paper.report_count or 0) + 1
+    db.commit()
+    db.refresh(report)
+
+    # Auto-delete if threshold reached
+    if paper.report_count >= settings.report_threshold:
+        _delete_paper(paper, db)
+        raise HTTPException(
+            status_code=200,
+            detail=f"Paper automatically removed — it received {paper.report_count} report(s).",
+        )
+
+    return report
+
 
 @router.post("/{paper_id}/vote", response_model=schemas.PaperResponse)
 def vote_paper(paper_id: int, vote: schemas.PaperVote, db: Session = Depends(get_db)):
@@ -102,13 +136,7 @@ def vote_paper(paper_id: int, vote: schemas.PaperVote, db: Session = Depends(get
 
     # Auto-delete threshold
     if paper.downvotes >= 100:
-        # Delete from Supabase Storage
-        supabase = create_client(settings.supabase_url, settings.supabase_key)
-        supabase.storage.from_("past_papers").remove([f"{paper.file_hash}.pdf"])
-        
-        # Delete from Database
-        db.delete(paper)
-        db.commit()
+        _delete_paper(paper, db)
         raise HTTPException(status_code=200, detail="Paper automatically removed due to community downvotes.")
 
     db.commit()

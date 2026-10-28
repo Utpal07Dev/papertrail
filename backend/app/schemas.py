@@ -20,11 +20,29 @@ class PaperResponse(BaseModel):
     download_count: int
     upvotes: int
     downvotes: int
+    report_count: int
 
     model_config = ConfigDict(from_attributes=True)
 
 class PaperVote(BaseModel):
     vote_type: str  # "up" or "down"
+
+
+class PaperReportCreate(BaseModel):
+    """Payload for reporting a paper."""
+
+    reason: str
+
+
+class PaperReportResponse(BaseModel):
+    """Returned after a report is submitted."""
+
+    id: int
+    paper_id: int
+    reason: str
+    created_at: datetime
+
+    model_config = ConfigDict(from_attributes=True)
 
 
 # ── Course Resources ────────────────────────────────────────────────────────

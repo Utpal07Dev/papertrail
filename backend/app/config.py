@@ -1,4 +1,4 @@
-"""Application settings loaded from environment variables.
+f"""Application settings loaded from environment variables.
 
 Keeping configuration in one place makes local development and deployment easier:
 values can change without editing Python source code.
@@ -29,7 +29,10 @@ class Settings(BaseSettings):
     supabase_url: str = ""
     supabase_key: str = ""
     gemini_api_key: str = ""
-    
+
+    # Community moderation: number of reports before a paper is auto-deleted
+    report_threshold: int = 5
+
     allowed_origins: str = (
         "http://localhost:3000,http://localhost:5500,http://127.0.0.1:5500,"
         "http://localhost:8000,http://127.0.0.1:8000"

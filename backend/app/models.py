@@ -1,4 +1,5 @@
-from sqlalchemy import Column, DateTime, Integer, String
+from sqlalchemy import Column, DateTime, ForeignKey, Integer, String
+from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
 from app.database import Base
 
@@ -18,6 +19,22 @@ class Paper(Base):
     # Community Moderation
     upvotes = Column(Integer, default=0)
     downvotes = Column(Integer, default=0)
+    report_count = Column(Integer, default=0)
+
+    reports = relationship("PaperReport", back_populates="paper", cascade="all, delete-orphan")
+
+
+class PaperReport(Base):
+    """A community report against a paper, with a reason."""
+
+    __tablename__ = "paper_reports"
+
+    id = Column(Integer, primary_key=True, index=True)
+    paper_id = Column(Integer, ForeignKey("papers.id", ondelete="CASCADE"), nullable=False, index=True)
+    reason = Column(String(500), nullable=False)
+    created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+
+    paper = relationship("Paper", back_populates="reports")
 
 
 class CourseResource(Base):

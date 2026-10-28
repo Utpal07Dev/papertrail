@@ -53,8 +53,18 @@ const resourceSubmit = document.querySelector("#resource-submit");
 const resourceDescription = document.querySelector("#resource-description");
 const resourceUrl = document.querySelector("#resource-url");
 
+// Report modal elements
+const reportModal = document.querySelector("#report-modal");
+const reportForm = document.querySelector("#report-form");
+const reportModalClose = document.querySelector("#report-modal-close");
+const reportCancel = document.querySelector("#report-cancel");
+const reportSubmit = document.querySelector("#report-submit");
+const reportReason = document.querySelector("#report-reason");
+const reportModalPaperTitle = document.querySelector("#report-modal-paper-title");
+
 let toastTimer;
 let searchTimer;
+let currentReportPaperId = null;
 
 /** Convert FastAPI error bodies into one friendly message. */
 function getErrorMessage(payload, fallback = "Something went wrong. Please try again.") {
@@ -109,6 +119,41 @@ function absoluteFileUrl(fileUrl) {
   return new URL(fileUrl, `${API_ORIGIN}/`).href;
 }
 
+// ── Report Modal helpers ────────────────────────────────────────────────────
+
+function openReportModal(paperId, paperTitle) {
+  currentReportPaperId = paperId;
+  reportModalPaperTitle.textContent = paperTitle;
+  reportForm.reset();
+  reportReason.value = "";
+  reportModal.classList.remove("hidden");
+  reportModal.classList.add("flex");
+  // Focus the first radio for keyboard users
+  const firstRadio = reportForm.querySelector('input[name="report-preset"]');
+  if (firstRadio) firstRadio.focus();
+}
+
+function closeReportModal() {
+  currentReportPaperId = null;
+  reportModal.classList.add("hidden");
+  reportModal.classList.remove("flex");
+}
+
+reportModalClose.addEventListener("click", closeReportModal);
+reportCancel.addEventListener("click", closeReportModal);
+
+// Close on backdrop click
+reportModal.addEventListener("click", (e) => {
+  if (e.target === reportModal) closeReportModal();
+});
+
+// Close on Escape key
+document.addEventListener("keydown", (e) => {
+  if (e.key === "Escape" && !reportModal.classList.contains("hidden")) {
+    closeReportModal();
+  }
+});
+
 /** Build one safe paper card using DOM methods rather than innerHTML. */
 function createPaperCard(paper, index) {
   const article = element(
@@ -152,18 +197,29 @@ function createPaperCard(paper, index) {
   downloadButton.dataset.downloadId = String(paper.id);
   downloadButton.setAttribute("aria-label", `Download ${paper.title}`);
 
-  const deleteButton = element(
+  // Report button (replaces old Delete button)
+  const reportButton = element(
     "button",
-    "delete-button inline-flex shrink-0 items-center justify-center gap-1.5 rounded-xl border border-red-200 bg-red-50 px-3 py-2.5 text-xs font-extrabold text-red-600 transition hover:border-red-500 hover:bg-red-500 hover:text-white disabled:cursor-wait disabled:opacity-60"
+    "report-button inline-flex shrink-0 items-center justify-center gap-1.5 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2.5 text-xs font-extrabold text-amber-700 transition hover:border-red-400 hover:bg-red-500 hover:text-white disabled:cursor-wait disabled:opacity-60"
   );
-  deleteButton.type = "button";
-  deleteButton.dataset.deleteId = String(paper.id);
-  deleteButton.dataset.deleteTitle = paper.title;
-  deleteButton.setAttribute("aria-label", `Delete ${paper.title}`);
-  deleteButton.innerHTML = `<svg class="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M3 6h18M8 6V4h8v2M19 6l-1 14H6L5 6" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg> Delete`;
+  reportButton.type = "button";
+  reportButton.dataset.reportId = String(paper.id);
+  reportButton.dataset.reportTitle = paper.title;
+  reportButton.setAttribute("aria-label", `Report ${paper.title}`);
+  reportButton.innerHTML = `<svg class="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1zM4 22v-7" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg> Report`;
+
+  // Show report count badge if there are reports
+  if (paper.report_count > 0) {
+    const reportBadge = element(
+      "span",
+      "ml-1 inline-flex h-5 min-w-[20px] items-center justify-center rounded-full bg-amber-200 px-1.5 text-[10px] font-extrabold text-amber-800",
+      String(paper.report_count)
+    );
+    reportButton.append(reportBadge);
+  }
 
   const actions = element("div", "flex shrink-0 items-center gap-2");
-  actions.append(downloadButton, deleteButton);
+  actions.append(downloadButton, reportButton);
   topRow.append(headingGroup, actions);
 
   const details = element("div", "mt-4 flex flex-wrap items-center gap-x-5 gap-y-2 border-t border-ink/5 pt-4 text-xs font-medium text-ink/45");
@@ -339,7 +395,7 @@ uploadForm.addEventListener("submit", async (event) => {
       method: "POST",
       body: new FormData(uploadForm),
     });
-    showToast(`“${createdPaper.title}” was added successfully.`);
+    showToast(`"${createdPaper.title}" was added successfully.`);
     uploadForm.reset();
     fileLabel.textContent = "Choose a PDF file";
     await loadPapers();
@@ -411,32 +467,70 @@ papersList.addEventListener("click", async (event) => {
   }
 });
 
-// Delete button — confirms first, then calls DELETE /api/papers/{id}.
-// Removes the PDF from Supabase Storage AND the database row in one call.
-papersList.addEventListener("click", async (event) => {
-  const button = event.target.closest("[data-delete-id]");
+// Report button — opens modal to collect the reason.
+papersList.addEventListener("click", (event) => {
+  const button = event.target.closest("[data-report-id]");
   if (!button) return;
 
-  const title = button.dataset.deleteTitle || "this paper";
-  if (!window.confirm(`Permanently delete "${title}"?\n\nThis removes the file from storage and the database. This cannot be undone.`)) return;
+  openReportModal(button.dataset.reportId, button.dataset.reportTitle || "this paper");
+});
 
-  button.disabled = true;
-  button.textContent = "Deleting…";
+// Report form submission
+reportForm.addEventListener("submit", async (event) => {
+  event.preventDefault();
+
+  if (!currentReportPaperId) return;
+
+  // Determine the reason: use a selected preset, or fall back to the textarea
+  const selectedPreset = reportForm.querySelector('input[name="report-preset"]:checked');
+  let reason = "";
+  if (selectedPreset && selectedPreset.value) {
+    // Preset selected — optionally append extra detail from textarea
+    reason = selectedPreset.value;
+    const extra = reportReason.value.trim();
+    if (extra) reason += ` — ${extra}`;
+  } else {
+    // "Other" or nothing selected — use the textarea content
+    reason = reportReason.value.trim();
+  }
+
+  if (!reason) {
+    showToast("Please select a reason or type one in the text box.", "error");
+    return;
+  }
+
+  reportSubmit.disabled = true;
+  reportSubmit.textContent = "Submitting…";
 
   try {
-    const response = await fetch(`${API_BASE_URL}/papers/${button.dataset.deleteId}`, {
-      method: "DELETE",
+    const response = await fetch(`${API_BASE_URL}/papers/${currentReportPaperId}/report`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ reason }),
     });
-    if (!response.ok) {
-      const payload = await response.json().catch(() => null);
-      throw new Error(getErrorMessage(payload, `Delete failed (${response.status}).`));
+
+    const payload = await response.json().catch(() => null);
+
+    if (response.status === 200 && payload?.detail) {
+      // Paper was auto-deleted because threshold was reached
+      showToast(payload.detail);
+      closeReportModal();
+      await loadPapers();
+      return;
     }
-    showToast(`"${title}" was deleted.`);
+
+    if (!response.ok) {
+      throw new Error(getErrorMessage(payload, `Report failed (${response.status}).`));
+    }
+
+    showToast("Report submitted. Thank you for helping keep the archive clean.");
+    closeReportModal();
     await loadPapers();
   } catch (error) {
     showToast(error.message, "error");
-    button.disabled = false;
-    button.innerHTML = `<svg class="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none"><path d="M3 6h18M8 6V4h8v2M19 6l-1 14H6L5 6" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg> Delete`;
+  } finally {
+    reportSubmit.disabled = false;
+    reportSubmit.innerHTML = `<svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1zM4 22v-7" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg> Submit Report`;
   }
 });
 
