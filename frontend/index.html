@@ -79,6 +79,12 @@
       @media (prefers-reduced-motion: reduce) {
         *, *::before, *::after { scroll-behavior: auto !important; animation: none !important; }
       }
+
+      /* Report modal backdrop */
+      .modal-backdrop {
+        background: rgba(23, 35, 31, 0.55);
+        backdrop-filter: blur(4px);
+      }
     </style>
     <script src="app.js" defer></script>
   </head>
@@ -357,6 +363,71 @@
         <p>FastAPI · PostgreSQL · SQLAlchemy · Vanilla JavaScript</p>
       </div>
     </footer>
+
+    <!-- Report Modal -->
+    <div id="report-modal" class="fixed inset-0 z-50 hidden items-center justify-center modal-backdrop" role="dialog" aria-modal="true" aria-labelledby="report-modal-title">
+      <div class="mx-4 w-full max-w-md rounded-3xl border border-ink/10 bg-white p-6 shadow-2xl">
+        <div class="mb-5 flex items-start justify-between gap-4">
+          <div>
+            <h3 id="report-modal-title" class="font-display text-xl font-extrabold tracking-tight">Report this paper</h3>
+            <p id="report-modal-paper-title" class="mt-1 text-sm text-ink/50 truncate max-w-[280px]"></p>
+          </div>
+          <button id="report-modal-close" type="button" class="grid h-9 w-9 shrink-0 place-items-center rounded-xl border border-ink/10 text-ink/40 transition hover:border-red-300 hover:bg-red-50 hover:text-red-600" aria-label="Close">
+            <svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+              <path d="M18 6 6 18M6 6l12 12" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+            </svg>
+          </button>
+        </div>
+
+        <form id="report-form" class="space-y-4">
+          <div>
+            <label for="report-reason" class="mb-1.5 block text-xs font-bold text-ink/65">Reason for reporting <span class="text-ember">*</span></label>
+            <div class="space-y-2 mb-3">
+              <label class="flex items-center gap-2.5 cursor-pointer rounded-xl border border-ink/10 px-3.5 py-2.5 text-sm transition hover:border-red-300 hover:bg-red-50 has-[:checked]:border-red-400 has-[:checked]:bg-red-50">
+                <input type="radio" name="report-preset" value="Wrong or irrelevant content" class="accent-red-500" />
+                <span>Wrong or irrelevant content</span>
+              </label>
+              <label class="flex items-center gap-2.5 cursor-pointer rounded-xl border border-ink/10 px-3.5 py-2.5 text-sm transition hover:border-red-300 hover:bg-red-50 has-[:checked]:border-red-400 has-[:checked]:bg-red-50">
+                <input type="radio" name="report-preset" value="Duplicate paper" class="accent-red-500" />
+                <span>Duplicate paper</span>
+              </label>
+              <label class="flex items-center gap-2.5 cursor-pointer rounded-xl border border-ink/10 px-3.5 py-2.5 text-sm transition hover:border-red-300 hover:bg-red-50 has-[:checked]:border-red-400 has-[:checked]:bg-red-50">
+                <input type="radio" name="report-preset" value="Low quality / unreadable" class="accent-red-500" />
+                <span>Low quality / unreadable</span>
+              </label>
+              <label class="flex items-center gap-2.5 cursor-pointer rounded-xl border border-ink/10 px-3.5 py-2.5 text-sm transition hover:border-red-300 hover:bg-red-50 has-[:checked]:border-red-400 has-[:checked]:bg-red-50">
+                <input type="radio" name="report-preset" value="Incorrect metadata (wrong semester, branch, etc.)" class="accent-red-500" />
+                <span>Incorrect metadata</span>
+              </label>
+              <label class="flex items-center gap-2.5 cursor-pointer rounded-xl border border-ink/10 px-3.5 py-2.5 text-sm transition hover:border-red-300 hover:bg-red-50 has-[:checked]:border-red-400 has-[:checked]:bg-red-50">
+                <input type="radio" name="report-preset" value="" class="accent-red-500" data-custom />
+                <span>Other (specify below)</span>
+              </label>
+            </div>
+            <textarea
+              id="report-reason"
+              name="reason"
+              rows="2"
+              maxlength="500"
+              placeholder="Provide more detail (optional for preset reasons)..."
+              class="field w-full rounded-xl border border-ink/15 bg-paper/60 px-3.5 py-2.5 text-sm transition placeholder:text-ink/30 resize-none"
+            ></textarea>
+          </div>
+
+          <div class="flex items-center gap-3">
+            <button id="report-submit" type="submit" class="flex items-center gap-2 rounded-xl bg-red-600 px-5 py-2.5 text-sm font-bold text-white shadow-lg shadow-red-600/20 transition hover:-translate-y-0.5 hover:bg-red-700 disabled:cursor-not-allowed disabled:opacity-60">
+              <svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                <path d="M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1zM4 22v-7" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+              </svg>
+              Submit Report
+            </button>
+            <button id="report-cancel" type="button" class="rounded-xl border border-ink/15 px-5 py-2.5 text-sm font-bold text-ink/60 transition hover:border-ink/30 hover:text-ink">
+              Cancel
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
 
     <!-- Toast messages are announced to screen readers as they appear. -->
     <div id="toast" class="pointer-events-none fixed bottom-5 left-1/2 z-50 hidden w-[calc(100%-2rem)] max-w-md -translate-x-1/2 rounded-2xl bg-ink px-4 py-3 text-sm font-semibold text-white shadow-2xl" role="status" aria-live="polite"></div>
