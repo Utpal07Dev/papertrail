@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Form
+from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Form, Request
 from sqlalchemy.orm import Session
 from app import models, schemas
 from app.database import get_db
@@ -87,12 +87,18 @@ def _delete_paper(paper: models.Paper, db: Session) -> None:
 
 
 @router.post("/{paper_id}/report", response_model=schemas.PaperReportResponse, status_code=201)
-def report_paper(paper_id: int, body: schemas.PaperReportCreate, db: Session = Depends(get_db)):
+def report_paper(
+    paper_id: int, 
+    body: schemas.PaperReportCreate, 
+    request: Request,
+    db: Session = Depends(get_db)
+):
     """Report a paper with a reason.
 
     Each report is stored individually. When the total number of reports
     reaches the configured threshold, the paper (and its file) are
     automatically deleted.
+    Duplicate reports for the same paper from the same device are rejected.
     """
 
     paper = db.query(models.Paper).filter(models.Paper.id == paper_id).first()
@@ -103,8 +109,28 @@ def report_paper(paper_id: int, body: schemas.PaperReportCreate, db: Session = D
     if not reason:
         raise HTTPException(status_code=422, detail="A report reason is required.")
 
+    # Extract device identifier (Header preferred, body fallback, or client IP)
+    device_id = (
+        request.headers.get("x-device-id")
+        or body.device_id
+        or (request.client.host if request.client else None)
+    )
+
+    if device_id:
+        # Check if this device has already reported THIS specific paper
+        existing = db.query(models.PaperReport).filter(
+            models.PaperReport.paper_id == paper_id,
+            models.PaperReport.device_id == device_id
+        ).first()
+
+        if existing:
+            raise HTTPException(
+                status_code=400,
+                detail="You have already submitted a report for this paper."
+            )
+
     # Create the report
-    report = models.PaperReport(paper_id=paper.id, reason=reason)
+    report = models.PaperReport(paper_id=paper.id, reason=reason, device_id=device_id)
     db.add(report)
 
     # Increment the denormalized counter

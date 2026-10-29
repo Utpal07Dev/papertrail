@@ -32,6 +32,7 @@ class PaperReportCreate(BaseModel):
     """Payload for reporting a paper."""
 
     reason: str
+    device_id: str | None = None
 
 
 class PaperReportResponse(BaseModel):
@@ -48,15 +49,11 @@ class PaperReportResponse(BaseModel):
 # ── Course Resources ────────────────────────────────────────────────────────
 
 class ResourceCreate(BaseModel):
-    """Fields accepted when adding a new study resource."""
-
+    course_code: str
     description: str
     url: str | None = None
 
-
 class ResourceResponse(BaseModel):
-    """Fields returned for a study resource (ORM-friendly)."""
-
     id: int
     course_code: str
     description: str

@@ -109,6 +109,46 @@ if (darkModeToggle) {
   });
 }
 
+// ── Device ID & Per-Paper Report Tracking ────────────────────────────────────
+const DEVICE_ID_KEY = "papertrail_device_id";
+const REPORTED_PAPERS_KEY = "papertrail_reported_papers";
+
+function getDeviceId() {
+  try {
+    let id = localStorage.getItem(DEVICE_ID_KEY);
+    if (!id) {
+      id =
+        typeof crypto !== "undefined" && crypto.randomUUID
+          ? crypto.randomUUID()
+          : "dev-" + Math.random().toString(36).slice(2) + Date.now();
+      localStorage.setItem(DEVICE_ID_KEY, id);
+    }
+    return id;
+  } catch {
+    return "anonymous-device";
+  }
+}
+
+function getReportedPaperIds() {
+  try {
+    return JSON.parse(localStorage.getItem(REPORTED_PAPERS_KEY) || "[]");
+  } catch {
+    return [];
+  }
+}
+
+function markPaperAsReported(paperId) {
+  try {
+    const ids = new Set(getReportedPaperIds());
+    ids.add(Number(paperId));
+    localStorage.setItem(REPORTED_PAPERS_KEY, JSON.stringify([...ids]));
+  } catch {}
+}
+
+function isPaperReported(paperId) {
+  return getReportedPaperIds().includes(Number(paperId));
+}
+
 /** Convert FastAPI error bodies into one friendly message. */
 function getErrorMessage(payload, fallback = "Something went wrong. Please try again.") {
   if (!payload) return fallback;
@@ -285,15 +325,26 @@ function createPaperCard(paper, index) {
   downloadButton.setAttribute("aria-label", `Download ${paper.title}`);
 
   // Report button
+  const alreadyReported = isPaperReported(paper.id);
   const reportButton = element(
     "button",
-    "report-button inline-flex shrink-0 items-center justify-center gap-1.5 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2.5 text-xs font-extrabold text-amber-700 transition hover:border-red-400 hover:bg-red-500 hover:text-white disabled:cursor-wait disabled:opacity-60 dark:border-amber-400/20 dark:bg-amber-950/30 dark:text-amber-400 dark:hover:bg-red-600 dark:hover:text-white"
+    alreadyReported
+      ? "report-button inline-flex shrink-0 items-center justify-center gap-1.5 rounded-xl border border-ink/10 bg-paper/60 px-3 py-2.5 text-xs font-semibold text-ink/40 cursor-not-allowed dark:border-white/10 dark:bg-white/5 dark:text-white/30"
+      : "report-button inline-flex shrink-0 items-center justify-center gap-1.5 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2.5 text-xs font-extrabold text-amber-700 transition hover:border-red-400 hover:bg-red-500 hover:text-white disabled:cursor-wait disabled:opacity-60 dark:border-amber-400/20 dark:bg-amber-950/30 dark:text-amber-400 dark:hover:bg-red-600 dark:hover:text-white"
   );
   reportButton.type = "button";
   reportButton.dataset.reportId = String(paper.id);
   reportButton.dataset.reportTitle = paper.title;
-  reportButton.setAttribute("aria-label", `Report ${paper.title}`);
-  reportButton.innerHTML = `<svg class="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1zM4 22v-7" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg> Report`;
+  reportButton.disabled = alreadyReported;
+  reportButton.setAttribute(
+    "aria-label",
+    alreadyReported ? `Already reported ${paper.title}` : `Report ${paper.title}`
+  );
+  if (alreadyReported) {
+    reportButton.innerHTML = `<svg class="h-3.5 w-3.5 text-ink/40 dark:text-white/40" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M20 6 9 17l-5-5" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg> Reported`;
+  } else {
+    reportButton.innerHTML = `<svg class="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1zM4 22v-7" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg> Report`;
+  }
 
   // Show report count badge if there are reports
   if (paper.report_count > 0) {
@@ -565,7 +616,12 @@ papersList.addEventListener("click", async (event) => {
 // Report button — opens modal to collect the reason.
 papersList.addEventListener("click", (event) => {
   const button = event.target.closest("[data-report-id]");
-  if (!button) return;
+  if (!button || button.disabled) return;
+
+  if (isPaperReported(button.dataset.reportId)) {
+    showToast("You have already reported this paper.", "error");
+    return;
+  }
 
   openReportModal(button.dataset.reportId, button.dataset.reportTitle || "this paper");
 });
@@ -600,14 +656,18 @@ reportForm.addEventListener("submit", async (event) => {
   try {
     const response = await fetch(`${API_BASE_URL}/papers/${currentReportPaperId}/report`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ reason }),
+      headers: { 
+        "Content-Type": "application/json",
+        "X-Device-Id": getDeviceId(),
+      },
+      body: JSON.stringify({ reason, device_id: getDeviceId() }),
     });
 
     const payload = await response.json().catch(() => null);
 
     if (response.status === 200 && payload?.detail) {
       // Paper was auto-deleted because threshold was reached
+      markPaperAsReported(currentReportPaperId);
       showToast(payload.detail);
       closeReportModal();
       await loadPapers();
@@ -615,9 +675,15 @@ reportForm.addEventListener("submit", async (event) => {
     }
 
     if (!response.ok) {
+      if (response.status === 400 && payload?.detail?.includes("already submitted a report")) {
+        markPaperAsReported(currentReportPaperId);
+        closeReportModal();
+        await loadPapers();
+      }
       throw new Error(getErrorMessage(payload, `Report failed (${response.status}).`));
     }
 
+    markPaperAsReported(currentReportPaperId);
     showToast("Report submitted. Thank you for helping keep the archive clean.");
     closeReportModal();
     await loadPapers();

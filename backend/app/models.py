@@ -32,6 +32,7 @@ class PaperReport(Base):
     id = Column(Integer, primary_key=True, index=True)
     paper_id = Column(Integer, ForeignKey("papers.id", ondelete="CASCADE"), nullable=False, index=True)
     reason = Column(String(500), nullable=False)
+    device_id = Column(String(64), nullable=True, index=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
 
     paper = relationship("Paper", back_populates="reports")
