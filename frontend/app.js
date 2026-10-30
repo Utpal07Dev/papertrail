@@ -1,5 +1,5 @@
 /*
- * PaperVault browser application
+ * PaperTrail browser application
  * --------------------------------
  * This file uses only standard browser APIs. Every backend call goes through
  * fetch(), and uploads use FormData so the PDF is sent as multipart/form-data.
@@ -97,7 +97,7 @@ function applyTheme(isDark) {
   }
 }
 
-const savedTheme = localStorage.getItem("papervault-theme");
+const savedTheme = localStorage.getItem("papertrail-theme");
 const prefersDark = window.matchMedia("(prefers-color-scheme: dark)").matches;
 applyTheme(savedTheme === "dark" || (!savedTheme && prefersDark));
 
@@ -105,7 +105,7 @@ if (darkModeToggle) {
   darkModeToggle.addEventListener("click", () => {
     const isNowDark = !document.documentElement.classList.contains("dark");
     applyTheme(isNowDark);
-    localStorage.setItem("papervault-theme", isNowDark ? "dark" : "light");
+    localStorage.setItem("papertrail-theme", isNowDark ? "dark" : "light");
   });
 }
 
@@ -709,6 +709,7 @@ resourceForm.addEventListener("submit", async (event) => {
   }
 
   const body = {
+    course_code: courseCode.toUpperCase(),
     description: resourceDescription.value.trim(),
     url: resourceUrl.value.trim() || null,
   };

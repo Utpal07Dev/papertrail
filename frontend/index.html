@@ -14,7 +14,7 @@
       For a separately hosted frontend, set content to the deployed API URL.
     -->
     <meta name="api-base-url" content="" />
-    <title>PaperVault · University Past Papers</title>
+    <title>PaperTrail · University Past Papers</title>
 
     <!-- Tailwind Play CDN is intentionally used because it is part of the lab brief. -->
     <script src="https://cdn.tailwindcss.com"></script>
@@ -46,7 +46,7 @@
     <script>
       (function() {
         try {
-          const savedTheme = localStorage.getItem("papervault-theme");
+          const savedTheme = localStorage.getItem("papertrail-theme");
           const prefersDark = window.matchMedia("(prefers-color-scheme: dark)").matches;
           if (savedTheme === "dark" || (!savedTheme && prefersDark)) {
             document.documentElement.classList.add("dark");
@@ -146,7 +146,7 @@
     <!-- Top navigation and API status -->
     <header class="border-b border-ink/10 bg-paper/80 backdrop-blur-xl dark:border-white/10 dark:bg-[#141f1a]/90">
       <div class="mx-auto flex max-w-7xl items-center justify-between px-5 py-4 lg:px-8">
-        <a href="#" class="group flex items-center gap-3" aria-label="PaperVault home">
+        <a href="#" class="group flex items-center gap-3" aria-label="PaperTrail home">
           <span class="grid h-10 w-10 place-items-center rounded-xl bg-forest text-white shadow-lg shadow-forest/20">
             <svg class="h-5 w-5" viewBox="0 0 24 24" fill="none" aria-hidden="true">
               <path d="M6.5 3.5h8l3 3v14h-11v-17Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/>
@@ -154,7 +154,7 @@
             </svg>
           </span>
           <span>
-            <span class="block font-display text-lg font-extrabold leading-none tracking-tight">PaperVault</span>
+            <span class="block font-display text-lg font-extrabold leading-none tracking-tight">PaperTrail</span>
             <span class="mt-1 block text-[10px] font-bold uppercase tracking-[0.2em] text-ink/45 dark:text-white/40">Campus archive</span>
           </span>
         </a>
@@ -427,7 +427,7 @@
 
     <footer class="border-t border-ink/10 bg-white/40 dark:border-white/10 dark:bg-[#141f1a]">
       <div class="mx-auto flex max-w-7xl flex-col gap-2 px-5 py-7 text-xs text-ink/45 sm:flex-row sm:items-center sm:justify-between lg:px-8 dark:text-white/35">
-        <p>PaperVault · University Past Paper Repository</p>
+        <p>PaperTrail · University Past Paper Repository</p>
         <p>FastAPI · PostgreSQL · SQLAlchemy · Vanilla JavaScript</p>
       </div>
     </footer>

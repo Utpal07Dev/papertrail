@@ -481,7 +481,7 @@ function isPaperReported(paperId) {
    * Fetches community study resources for that specific course code via `/api/courses/{code}/resources`.
    * Includes a collapsible submission form to contribute study links directly.
 4. **Dark Mode Engine:**
-   * Reads system preference (`prefers-color-scheme: dark`) and `localStorage("papervault-theme")`.
+   * Reads system preference (`prefers-color-scheme: dark`) and `localStorage("papertrail-theme")`.
    * Directly toggles the `dark` class on `document.documentElement` and `dark-bg` on `document.body` without UI flicker (inline execution in `<head>`).
 
 ---

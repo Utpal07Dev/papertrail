@@ -49,7 +49,7 @@ class PaperReportResponse(BaseModel):
 # ── Course Resources ────────────────────────────────────────────────────────
 
 class ResourceCreate(BaseModel):
-    course_code: str
+    course_code: str | None = None
     description: str
     url: str | None = None
 
